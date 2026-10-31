@@ -25,6 +25,7 @@ public final class SessionControl {
 
     public static void talk(Context ctx) {
         SessionState.armed = true;
+        SessionState.awaitingVoiceTap = true;
         DriveActions.startClaudeAssist(ctx);
         DriveMediaService svc = DriveMediaService.active;
         if (svc != null) svc.reflectPlaying();
@@ -60,6 +61,7 @@ public final class SessionControl {
                     Toast.LENGTH_LONG).show();
         }
         SessionState.armed = false;
+        SessionState.awaitingVoiceTap = false;
         DriveMediaService svc = DriveMediaService.active;
         if (svc != null) svc.reflectStopped();
     }

@@ -89,3 +89,22 @@ the path entirely (zero MacroDroid references in the DEX, verified):
   muse and root, direct and via tailnet), so v2 was built with the
   local read-only SDK exactly like v1. Box access is a main-chat
   VPS-migration item, not a build blocker.
+
+## v2.1.0 — start the session without deep links (same day)
+
+His on-device finding: the session can't be started through URI
+deep links — `hatch://voice` is TrustedCaller-gated to Meta-signed
+apps (the REA verdict), so Talk's ACTION_ASSIST landed in Muse's
+text composer, not a live voice session.
+
+Fix: Talk still opens Muse via ACTION_ASSIST, but now arms a
+voice-button hunt — Muse Drive's accessibility service watches
+for the Muse window, finds Muse's own voice button (view-id
+candidates from the REA pass incl. `hatch_voice_button`, then
+exact text/description labels) and taps it, starting the same
+session the deep link would have. Retries for ~7s while the UI
+renders; a short buzz confirms the tap landed. No URI is fired.
+
+Built on the VPS (muse@167.233.41.12:~/muse-drive) with the
+box's own Android SDK — the first build after the 2026-10-31 SSH
+repair; same signing key, upgrades in place.

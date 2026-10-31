@@ -10,6 +10,11 @@ package com.jonathancruzate.musedrive;
 public final class SessionState {
     public static volatile boolean armed = false;
     public static volatile boolean micMuted = false;
+    /** v2.1: set by talk() — the accessibility service is hunting
+     *  Muse's in-app voice button to tap it (URI deep links into
+     *  Muse voice are TrustedCaller-gated, so the session is
+     *  started by opening Muse and tapping its own button). */
+    public static volatile boolean awaitingVoiceTap = false;
 
     private SessionState() {}
 }

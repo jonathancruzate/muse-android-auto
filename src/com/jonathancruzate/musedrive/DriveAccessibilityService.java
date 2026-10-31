@@ -26,6 +26,14 @@ import java.util.List;
  *     window and click it — view-id candidates from the REA pass
  *     (end_voice_button) plus text/description candidates; fallback
  *     Back, then Home (the same chain as the retired macro).
+ *
+ *  3. startVoice() (v2.1): the URI deep link into Muse voice
+ *     (hatch://voice) is TrustedCaller-gated to Meta-signed apps,
+ *     so no outside app can fire it. Instead talk() opens Muse
+ *     via ACTION_ASSIST and this service taps Muse's own voice
+ *     button when the Muse window appears (SessionState
+ *     .awaitingVoiceTap), which starts the same session the deep
+ *     link would have.
  */
 public class DriveAccessibilityService extends AccessibilityService {
 
@@ -52,8 +60,83 @@ public class DriveAccessibilityService extends AccessibilityService {
 
     @Override
     public void onAccessibilityEvent(AccessibilityEvent event) {
-        // Events are not consumed; window content is read on demand
-        // in endCall().
+        // Window content is read on demand in endCall(); events only
+        // wake the voice-button hunt while a Talk is pending.
+        if (SessionState.awaitingVoiceTap && event != null
+                && event.getPackageName() != null
+                && "com.facebook.aura".contentEquals(event.getPackageName())) {
+            scheduleVoiceHunt();
+        }
+    }
+
+    // ---- start voice (v2.1: tap Muse's own voice button) ----
+
+    private int voiceHuntAttempts = 0;
+    private boolean voiceHuntRunning = false;
+    private final Runnable voiceHuntStep = new Runnable() {
+        @Override
+        public void run() {
+            if (!SessionState.awaitingVoiceTap) {
+                voiceHuntRunning = false;
+                return;
+            }
+            if (tryTapVoiceButton()) {
+                SessionState.awaitingVoiceTap = false;
+                voiceHuntRunning = false;
+                SessionControl.buzz(DriveAccessibilityService.this, 80);
+                return;
+            }
+            voiceHuntAttempts++;
+            if (voiceHuntAttempts >= 8) { // ~7s of retries, then stop hunting
+                SessionState.awaitingVoiceTap = false;
+                voiceHuntRunning = false;
+                return;
+            }
+            handler.postDelayed(this, 900);
+        }
+    };
+
+    private void scheduleVoiceHunt() {
+        if (voiceHuntRunning) return;
+        voiceHuntRunning = true;
+        voiceHuntAttempts = 0;
+        handler.postDelayed(voiceHuntStep, 400);
+    }
+
+    private boolean tryTapVoiceButton() {
+        AccessibilityNodeInfo root = getRootInActiveWindow();
+        if (root == null || root.getPackageName() == null
+                || !"com.facebook.aura".contentEquals(root.getPackageName())) {
+            return false;
+        }
+        // 1) view-id candidates (resource names from the REA DEX pass)
+        String[] ids = {
+                "com.facebook.aura:id/hatch_voice_button",
+                "com.facebook.aura:id/voice_button",
+                "com.facebook.aura:id/voice_call_button",
+                "com.facebook.aura:id/start_voice_button",
+        };
+        for (String id : ids) {
+            List<AccessibilityNodeInfo> nodes = root.findAccessibilityNodeInfosByViewId(id);
+            if (nodes != null && !nodes.isEmpty() && clickNode(nodes.get(0))) return true;
+        }
+        // 2) exact text / description candidates
+        String[] labels = {"Voice call", "Start voice call", "Voice mode", "Voice", "Talk"};
+        for (String label : labels) {
+            List<AccessibilityNodeInfo> nodes = root.findAccessibilityNodeInfosByText(label);
+            if (nodes != null) {
+                for (AccessibilityNodeInfo n : nodes) {
+                    CharSequence t = n.getText();
+                    CharSequence d = n.getContentDescription();
+                    if ((t != null && label.equalsIgnoreCase(t.toString()))
+                            || (d != null && label.equalsIgnoreCase(d.toString()))) {
+                        if (clickNode(n)) return true;
+                    }
+                }
+            }
+            if (searchByDescription(root, label)) return true;
+        }
+        return false;
     }
 
     @Override
