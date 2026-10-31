@@ -1,0 +1,63 @@
+<?xml version="1.0" encoding="utf-8"?>
+<manifest xmlns:android="http://schemas.android.com/apk/res/android"
+    package="com.jonathancruzate.musedrive">
+
+    <uses-feature android:name="android.hardware.type.automotive" android:required="false" />
+
+    <queries>
+        <package android:name="com.facebook.aura" />
+    </queries>
+
+    <uses-permission android:name="android.permission.VIBRATE" />
+
+    <application
+        android:label="Muse Drive"
+        android:icon="@drawable/ic_launcher"
+        android:allowBackup="false">
+
+        <!-- Android Auto media app declaration -->
+        <meta-data
+            android:name="com.google.android.gms.car.application"
+            android:resource="@xml/automotive_app_desc" />
+
+        <activity
+            android:name=".MainActivity"
+            android:exported="true">
+            <intent-filter>
+                <action android:name="android.intent.action.MAIN" />
+                <category android:name="android.intent.category.LAUNCHER" />
+            </intent-filter>
+        </activity>
+
+        <service
+            android:name=".DriveMediaService"
+            android:exported="true">
+            <intent-filter>
+                <action android:name="android.media.browse.MediaBrowserService" />
+            </intent-filter>
+        </service>
+
+        <service
+            android:name=".DriveAccessibilityService"
+            android:exported="true"
+            android:permission="android.permission.BIND_ACCESSIBILITY_SERVICE">
+            <intent-filter>
+                <action android:name="android.accessibilityservice.AccessibilityService" />
+            </intent-filter>
+            <meta-data
+                android:name="android.accessibilityservice"
+                android:resource="@xml/drive_accessibility_config" />
+        </service>
+
+        <receiver
+            android:name=".DriveReceiver"
+            android:exported="true">
+            <intent-filter>
+                <action android:name="com.jonathancruzate.musedrive.TALK" />
+                <action android:name="com.jonathancruzate.musedrive.MUTE" />
+                <action android:name="com.jonathancruzate.musedrive.UNMUTE" />
+                <action android:name="com.jonathancruzate.musedrive.END" />
+            </intent-filter>
+        </receiver>
+    </application>
+</manifest>

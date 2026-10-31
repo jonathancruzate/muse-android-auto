@@ -1,0 +1,4 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <string name="accessibility_desc">Muse Drive: volume-button long-presses for mute / unmute / hang up during a Muse voice session, and tapping Muse\'s end-call button. Only active while a session is armed from Muse Drive.</string>
+</resources>
