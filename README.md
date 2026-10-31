@@ -1,4 +1,4 @@
-# Muse Drive — Android Auto media app (v2.0.0, built 2026-10-31)
+# Muse Drive — Android Auto media app (v2.2.0, built 2026-10-31)
 
 An Android Auto app for the driving voice project, built at
 Jonathan's direct ask ("make an app for Android Auto") after the
@@ -11,8 +11,10 @@ session's eyes-free controls.
 
 ## What it is
 
-- Package `com.jonathancruzate.musedrive`, framework-only (no
-  androidx): `MediaBrowserService` + framework `MediaSession`,
+- Package `com.jonathancruzate.musedrive`: a
+  `MediaBrowserService` + `MediaSession` media app (framework
+  APIs in v1–v2.1; androidx.media Compat since v2.2.0, see the
+  v2.2.0 section below),
   `automotive_app_desc.xml` declaring `<uses name="media"/>`.
 - In Auto it appears as a media source with one playable item,
   "Muse voice line" — a silent loop (res/raw/silence.wav). The
@@ -108,3 +110,98 @@ renders; a short buzz confirms the tap landed. No URI is fired.
 Built on the VPS (muse@167.233.41.12:~/muse-drive) with the
 box's own Android SDK — the first build after the 2026-10-31 SSH
 repair; same signing key, upgrades in place.
+
+## v2.2.0 — Android Auto launcher visibility fix (same day)
+
+His on-device report: Muse Drive's session is present when
+Android Auto first starts, but Muse Drive does **not** appear in
+the Android Auto apps/launcher list — once he leaves it, he can't
+trigger or return to it from the Auto UI.
+
+### Diagnosis (ranked; researched online 2026-10-31)
+
+Why it works at startup but not from the launcher: Android Auto's
+startup presence is the **media-resumption** path — Auto restores
+the most recent/active media session on connection. That path is
+fed by the system media session, not by Auto's app enumeration.
+The launcher / media-source list is a separate enumeration, and
+it is gated. Ranked causes:
+
+1. **Android Auto Developer settings → "Unknown sources" OFF**
+   (phone-side setting). Android Auto hides every app that didn't
+   come from the Play Store until this is on; sideloaded apps
+   "install correctly but will not show up in the Android Auto
+   launcher" without it (multiple install guides: AA Browse,
+   CarStream, Fermata). AA updates and clearing AA data can reset
+   it. This was a known parked unknown from the v1 test list —
+   never confirmed ON on his phone.
+2. **"Customize launcher" in Android Auto settings — Muse Drive
+   unchecked/hidden** (phone-side). The other fix named in
+   virtually every missing-app guide: Settings → Connected
+   devices → Android Auto → Customize launcher → check Muse
+   Drive (and drag it near the top).
+3. **Framework `MediaBrowserService` vs the documented Compat
+   contract** (code — fixed in this version). Google's current
+   Android-for-Cars docs define the media browser service as one
+   that "complies with the `MediaBrowserServiceCompat` API"
+   (developer.android.com/training/cars/media), and every official
+   sample (UAMP etc.) extends `MediaBrowserServiceCompat`.
+   v1–v2.1 used the legacy framework
+   `android.service.media.MediaBrowserService`, which the
+   resumption path still reached but which modern Auto does not
+   reliably enumerate into the launcher/source list.
+4. **Samsung One UI sleeping / auto-disabled apps** (phone-side).
+   Android can put rarely-opened apps to sleep and they drop out
+   of the Auto launcher (Google/Android Auto Help, via Engadget).
+   Muse Drive's phone UI is a test panel he rarely opens, so it
+   is a prime sleep candidate: Settings → Apps → Muse Drive →
+   Battery → Unrestricted, and exclude it from Sleeping apps.
+
+### Fix shipped in v2.2.0 (versionCode 4)
+
+- `DriveMediaService` migrated to
+  `androidx.media.MediaBrowserServiceCompat` with
+  `MediaSessionCompat`, `MediaMetadataCompat`,
+  `PlaybackStateCompat`, `MediaBrowserCompat.MediaItem` /
+  `MediaDescriptionCompat`. One binder now serves both framework
+  and Compat MediaBrowser clients — the documented Auto contract.
+  All session behavior unchanged (Play/Pause/Stop + Talk/Mute/
+  Hang up custom actions, silent loop, notification; the
+  notification's MediaStyle unwraps the framework token from the
+  Compat token).
+- Manifest: the media service now carries an explicit
+  `android:label="Muse Drive"` (launcher entries read the
+  service label). The `com.google.android.gms.car.application`
+  meta-data → `@xml/automotive_app_desc` (`<uses name="media"/>`)
+  and the exported service with the
+  `android.media.browse.MediaBrowserService` intent-filter are
+  unchanged — verified present in the compiled APK.
+- Build: still the raw javac/d8/aapt2 flow (no Gradle).
+  `build.sh` now fetches pinned AndroidX artifacts from Google's
+  Maven repo into `libs/` if absent (media 1.7.0, core 1.13.1,
+  versionedparcelable 1.1.1 AARs → classes.jar; annotation
+  1.8.2, collection 1.4.5, lifecycle-common 2.8.4,
+  arch-core-common 2.2.0, concurrent-futures 1.1.0 JARs) and puts
+  them on the javac classpath and into the dex.
+- Verified: builds clean with the project's own keystore (same
+  signing cert as v2.1.0, upgrades in place); `aapt2 dump
+  badging` shows versionCode 4 / versionName 2.2.0; DEX contains
+  `androidx/media/MediaBrowserServiceCompat` and
+  `android/support/v4/media/session/MediaSessionCompat`.
+  APK: `Muse-Drive-2.2.0.apk`, SHA-256
+  `e879e73979c89bbadf0d10e59e5f696fd19f2275a1275a9d2314c24f957d15db`.
+
+### Phone-side checklist (Jonathan, parked — never while driving)
+
+1. Android Auto settings → tap **Version** ~10× to unlock
+   Developer settings → ⋮ → **Developer settings** → turn ON
+   **Unknown sources**. (If it was already on, toggle it off/on
+   and clear Android Auto's cache — not data.)
+2. Android Auto settings → **Customize launcher** → make sure
+   **Muse Drive** is checked; drag it toward the top.
+3. Phone Settings → Apps → **Muse Drive** → Battery →
+   **Unrestricted**; and Battery → Background usage limits →
+   Never sleeping apps → add Muse Drive.
+4. Open Muse Drive once on the phone (wakes it if Android had
+   auto-disabled it), then reconnect to the car and check the
+   launcher.

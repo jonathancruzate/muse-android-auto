@@ -8,14 +8,15 @@ import android.content.Context;
 import android.content.Intent;
 import android.media.AudioFocusRequest;
 import android.media.AudioManager;
-import android.media.MediaMetadata;
 import android.media.MediaPlayer;
-import android.media.browse.MediaBrowser;
-import android.media.MediaDescription;
 import android.media.session.MediaSession;
-import android.media.session.PlaybackState;
 import android.os.Bundle;
-import android.service.media.MediaBrowserService;
+import android.support.v4.media.MediaBrowserCompat;
+import android.support.v4.media.MediaDescriptionCompat;
+import android.support.v4.media.MediaMetadataCompat;
+import android.support.v4.media.session.MediaSessionCompat;
+import android.support.v4.media.session.PlaybackStateCompat;
+import androidx.media.MediaBrowserServiceCompat;
 
 import java.util.ArrayList;
 import java.util.List;
@@ -37,8 +38,21 @@ import java.util.List;
  *  see those classes. This service owns the media session, the
  *  silent player, and the phone notification; it reflects state
  *  changes that arrive from the other surfaces (volume keys,
- *  notification actions, test panel). */
-public class DriveMediaService extends MediaBrowserService {
+ *  notification actions, test panel).
+ *
+ *  v2.2.0: migrated from the framework
+ *  android.service.media.MediaBrowserService to
+ *  androidx.media.MediaBrowserServiceCompat (+ MediaSessionCompat).
+ *  Google's current Android-for-Cars docs define the media browser
+ *  service contract as the MediaBrowserServiceCompat API, and every
+ *  official sample uses it. The framework-only service was still
+ *  reachable through Android Auto's media *resumption* path (the
+ *  session reappeared when Auto started) but was not reliably
+ *  enumerated into the Auto launcher / media-source list, so once
+ *  the driver left the session there was no way back in from the
+ *  Auto UI. The compat service serves both framework and compat
+ *  MediaBrowser clients from one binder. */
+public class DriveMediaService extends MediaBrowserServiceCompat {
 
     private static final String ROOT_ID = "muse_drive_root";
     private static final String LINE_ID = "muse_voice_line";
@@ -47,7 +61,7 @@ public class DriveMediaService extends MediaBrowserService {
 
     public static volatile DriveMediaService active;
 
-    private MediaSession session;
+    private MediaSessionCompat session;
     private MediaPlayer player;
     private AudioManager audioManager;
     private AudioFocusRequest focusRequest;
@@ -58,17 +72,17 @@ public class DriveMediaService extends MediaBrowserService {
         active = this;
         audioManager = (AudioManager) getSystemService(Context.AUDIO_SERVICE);
 
-        session = new MediaSession(this, "MuseDrive");
+        session = new MediaSessionCompat(this, "MuseDrive");
         session.setCallback(new SessionCallback());
-        session.setFlags(MediaSession.FLAG_HANDLES_MEDIA_BUTTONS
-                | MediaSession.FLAG_HANDLES_TRANSPORT_CONTROLS);
-        session.setMetadata(new MediaMetadata.Builder()
-                .putString(MediaMetadata.METADATA_KEY_TITLE, "Muse voice line")
-                .putString(MediaMetadata.METADATA_KEY_ARTIST, "Muse Drive")
-                .putString(MediaMetadata.METADATA_KEY_ALBUM, "Play = mic live, Pause = mute, Stop = hang up")
+        session.setFlags(MediaSessionCompat.FLAG_HANDLES_MEDIA_BUTTONS
+                | MediaSessionCompat.FLAG_HANDLES_TRANSPORT_CONTROLS);
+        session.setMetadata(new MediaMetadataCompat.Builder()
+                .putString(MediaMetadataCompat.METADATA_KEY_TITLE, "Muse voice line")
+                .putString(MediaMetadataCompat.METADATA_KEY_ARTIST, "Muse Drive")
+                .putString(MediaMetadataCompat.METADATA_KEY_ALBUM, "Play = mic live, Pause = mute, Stop = hang up")
                 .build());
         setSessionToken(session.getSessionToken());
-        updateState(PlaybackState.STATE_NONE);
+        updateState(PlaybackStateCompat.STATE_NONE);
         session.setActive(true);
 
         player = newPlayer();
@@ -84,7 +98,7 @@ public class DriveMediaService extends MediaBrowserService {
         return p;
     }
 
-    // ---- MediaBrowserService ----
+    // ---- MediaBrowserServiceCompat ----
 
     @Override
     public BrowserRoot onGetRoot(String clientPackageName, int clientUid, Bundle rootHints) {
@@ -92,22 +106,22 @@ public class DriveMediaService extends MediaBrowserService {
     }
 
     @Override
-    public void onLoadChildren(String parentId, Result<List<MediaBrowser.MediaItem>> result) {
-        List<MediaBrowser.MediaItem> items = new ArrayList<>();
+    public void onLoadChildren(String parentId, Result<List<MediaBrowserCompat.MediaItem>> result) {
+        List<MediaBrowserCompat.MediaItem> items = new ArrayList<>();
         if (ROOT_ID.equals(parentId)) {
-            MediaDescription desc = new MediaDescription.Builder()
+            MediaDescriptionCompat desc = new MediaDescriptionCompat.Builder()
                     .setMediaId(LINE_ID)
                     .setTitle("Muse voice line")
                     .setSubtitle("Play = mic live - Pause = mute - Stop = hang up")
                     .build();
-            items.add(new MediaBrowser.MediaItem(desc, MediaBrowser.MediaItem.FLAG_PLAYABLE));
+            items.add(new MediaBrowserCompat.MediaItem(desc, MediaBrowserCompat.MediaItem.FLAG_PLAYABLE));
         }
         result.sendResult(items);
     }
 
     // ---- transport -> SessionControl ----
 
-    private class SessionCallback extends MediaSession.Callback {
+    private class SessionCallback extends MediaSessionCompat.Callback {
         @Override public void onPlay() { SessionControl.unmute(DriveMediaService.this); }
         @Override public void onPause() { SessionControl.mute(DriveMediaService.this); }
         @Override public void onStop() { SessionControl.end(DriveMediaService.this); }
@@ -134,19 +148,19 @@ public class DriveMediaService extends MediaBrowserService {
     public void reflectPlaying() {
         requestFocus();
         if (player != null && !player.isPlaying()) player.start();
-        updateState(PlaybackState.STATE_PLAYING);
+        updateState(PlaybackStateCompat.STATE_PLAYING);
         postNotification(true);
     }
 
     public void reflectPaused() {
         if (player != null && player.isPlaying()) player.pause();
-        updateState(PlaybackState.STATE_PAUSED);
+        updateState(PlaybackStateCompat.STATE_PAUSED);
         postNotification(false);
     }
 
     public void reflectStopped() {
         if (player != null && player.isPlaying()) player.stop();
-        updateState(PlaybackState.STATE_STOPPED);
+        updateState(PlaybackStateCompat.STATE_STOPPED);
         NotificationManager nm = (NotificationManager) getSystemService(Context.NOTIFICATION_SERVICE);
         if (nm != null) nm.cancel(NOTIF_ID);
         abandonFocus();
@@ -157,16 +171,16 @@ public class DriveMediaService extends MediaBrowserService {
     }
 
     private void updateState(int state) {
-        PlaybackState.Builder b = new PlaybackState.Builder()
-                .setActions(PlaybackState.ACTION_PLAY | PlaybackState.ACTION_PAUSE
-                        | PlaybackState.ACTION_PLAY_PAUSE | PlaybackState.ACTION_STOP)
+        PlaybackStateCompat.Builder b = new PlaybackStateCompat.Builder()
+                .setActions(PlaybackStateCompat.ACTION_PLAY | PlaybackStateCompat.ACTION_PAUSE
+                        | PlaybackStateCompat.ACTION_PLAY_PAUSE | PlaybackStateCompat.ACTION_STOP)
                 .addCustomAction(DriveActions.ACTION_TALK, "Talk to Muse",
                         android.R.drawable.ic_btn_speak_now)
                 .addCustomAction(DriveActions.ACTION_MUTE, "Mute",
                         android.R.drawable.ic_lock_silent_mode)
                 .addCustomAction(DriveActions.ACTION_END, "Hang up",
                         android.R.drawable.ic_menu_close_clear_cancel)
-                .setState(state, PlaybackState.PLAYBACK_POSITION_UNKNOWN, 1.0f);
+                .setState(state, PlaybackStateCompat.PLAYBACK_POSITION_UNKNOWN, 1.0f);
         session.setPlaybackState(b.build());
     }
 
@@ -212,11 +226,14 @@ public class DriveMediaService extends MediaBrowserService {
     }
 
     private void postNotification(boolean live) {
+        // Notification.MediaStyle needs the framework token; the compat
+        // token wraps it (API 21+ getToken() returns the framework token).
+        MediaSession.Token fwToken = (MediaSession.Token) session.getSessionToken().getToken();
         Notification.Builder nb = new Notification.Builder(this, CHANNEL_ID)
                 .setSmallIcon(android.R.drawable.ic_btn_speak_now)
                 .setContentTitle("Muse Drive")
                 .setContentText(live ? "Mic live" : "Muted")
-                .setStyle(new Notification.MediaStyle().setMediaSession(session.getSessionToken()))
+                .setStyle(new Notification.MediaStyle().setMediaSession(fwToken))
                 .addAction(android.R.drawable.ic_btn_speak_now, "Talk",
                         actionIntent(DriveActions.ACTION_TALK, 1))
                 .addAction(android.R.drawable.ic_lock_silent_mode, "Mute",
