@@ -1,4 +1,4 @@
-# Muse Drive — Android Auto media app (v2.2.0, built 2026-10-31)
+# Muse Drive — Android Auto media app (v2.2.1, built 2026-10-31)
 
 An Android Auto app for the driving voice project, built at
 Jonathan's direct ask ("make an app for Android Auto") after the
@@ -190,6 +190,43 @@ it is gated. Ranked causes:
   `android/support/v4/media/session/MediaSessionCompat`.
   APK: `Muse-Drive-2.2.0.apk`, SHA-256
   `e879e73979c89bbadf0d10e59e5f696fd19f2275a1275a9d2314c24f957d15db`.
+
+## v2.2.1 — launch hardening (same day, versionCode 5)
+
+v2.2.0 would not open at all on the S24+ (One UI 9 / Android 16):
+the tap produced no UI. The build was structurally sound
+(launcher activity present and exported, signing cert unchanged,
+all AndroidX classes in the dex, no FGS-type mismatch — the
+service never calls `startForeground()`). The remaining suspect
+on the launch path: `MainActivity.onCreate` ended with a
+synchronous `startService(DriveMediaService.class)`, which runs
+the service's `onCreate` inline — and v2.2.0's new androidx
+`MediaBrowserServiceCompat` + `MediaSessionCompat`
+initialization can throw on that device build, killing the whole
+process before the first frame.
+
+Fixes shipped in v2.2.1:
+
+- `DriveMediaService.onCreate` wraps ALL initialization
+  (session construction, token, player, notification channel)
+  in catch-`Throwable` guards: any failure is logged
+  (`MuseDrive` tag) and the service degrades to inert — session
+  left null, `initFailed` set, every later entry point
+  (`updateState`, `postNotification`, player creation)
+  null-guarded — instead of crashing the process.
+- `MainActivity` no longer starts the service synchronously:
+  the `startService` call is posted to the root view, so it runs
+  after the first frame, and is itself exception-guarded. A
+  service-side fault can never take the phone UI down again.
+
+Verified: builds clean with the project's own keystore (same
+signing cert `314b8616…` as every prior build, upgrades in
+place); `aapt2 dump badging` shows versionCode 5 / versionName
+2.2.1; compiled manifest carries MainActivity,
+DriveMediaService, DriveAccessibilityService and DriveReceiver;
+the dex contains the new failure-logging path. APK:
+`Muse-Drive-2.2.1.apk`, SHA-256
+`576063d550681a679d0cc76b57393dd556115c5997544d13c64d308db86954a5`.
 
 ### Phone-side checklist (Jonathan, parked — never while driving)
 

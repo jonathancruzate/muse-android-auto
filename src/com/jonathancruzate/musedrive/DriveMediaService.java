@@ -16,6 +16,7 @@ import android.support.v4.media.MediaDescriptionCompat;
 import android.support.v4.media.MediaMetadataCompat;
 import android.support.v4.media.session.MediaSessionCompat;
 import android.support.v4.media.session.PlaybackStateCompat;
+import android.util.Log;
 import androidx.media.MediaBrowserServiceCompat;
 
 import java.util.ArrayList;
@@ -51,15 +52,31 @@ import java.util.List;
  *  enumerated into the Auto launcher / media-source list, so once
  *  the driver left the session there was no way back in from the
  *  Auto UI. The compat service serves both framework and compat
- *  MediaBrowser clients from one binder. */
+ *  MediaBrowser clients from one binder.
+ *
+ *  v2.2.1: launch hardening. On the S24+ (One UI 9 / Android 16)
+ *  v2.2.0 would not open at all: the androidx session init in
+ *  onCreate can throw on that device build, and because
+ *  MainActivity started this service synchronously at the end of
+ *  its own onCreate, the uncaught throw killed the whole process
+ *  before the first frame. onCreate now wraps ALL initialization
+ *  so any failure degrades to an inert service (logged, session
+ *  left null, every entry point null-guarded) instead of crashing
+ *  the process, and MainActivity defers the start until after its
+ *  first frame. */
 public class DriveMediaService extends MediaBrowserServiceCompat {
 
+    private static final String TAG = "MuseDrive";
     private static final String ROOT_ID = "muse_drive_root";
     private static final String LINE_ID = "muse_voice_line";
     private static final String CHANNEL_ID = "muse_drive";
     private static final int NOTIF_ID = 42;
 
     public static volatile DriveMediaService active;
+
+    /** True when onCreate init failed and the service degraded to
+     *  inert (v2.2.1). The phone UI stays up either way. */
+    public static volatile boolean initFailed;
 
     private MediaSessionCompat session;
     private MediaPlayer player;
@@ -70,32 +87,53 @@ public class DriveMediaService extends MediaBrowserServiceCompat {
     public void onCreate() {
         super.onCreate();
         active = this;
-        audioManager = (AudioManager) getSystemService(Context.AUDIO_SERVICE);
+        try {
+            audioManager = (AudioManager) getSystemService(Context.AUDIO_SERVICE);
 
-        session = new MediaSessionCompat(this, "MuseDrive");
-        session.setCallback(new SessionCallback());
-        session.setFlags(MediaSessionCompat.FLAG_HANDLES_MEDIA_BUTTONS
-                | MediaSessionCompat.FLAG_HANDLES_TRANSPORT_CONTROLS);
-        session.setMetadata(new MediaMetadataCompat.Builder()
-                .putString(MediaMetadataCompat.METADATA_KEY_TITLE, "Muse voice line")
-                .putString(MediaMetadataCompat.METADATA_KEY_ARTIST, "Muse Drive")
-                .putString(MediaMetadataCompat.METADATA_KEY_ALBUM, "Play = mic live, Pause = mute, Stop = hang up")
-                .build());
-        setSessionToken(session.getSessionToken());
-        updateState(PlaybackStateCompat.STATE_NONE);
-        session.setActive(true);
+            session = new MediaSessionCompat(this, "MuseDrive");
+            session.setCallback(new SessionCallback());
+            session.setFlags(MediaSessionCompat.FLAG_HANDLES_MEDIA_BUTTONS
+                    | MediaSessionCompat.FLAG_HANDLES_TRANSPORT_CONTROLS);
+            session.setMetadata(new MediaMetadataCompat.Builder()
+                    .putString(MediaMetadataCompat.METADATA_KEY_TITLE, "Muse voice line")
+                    .putString(MediaMetadataCompat.METADATA_KEY_ARTIST, "Muse Drive")
+                    .putString(MediaMetadataCompat.METADATA_KEY_ALBUM, "Play = mic live, Pause = mute, Stop = hang up")
+                    .build());
+            setSessionToken(session.getSessionToken());
+            updateState(PlaybackStateCompat.STATE_NONE);
+            session.setActive(true);
 
-        player = newPlayer();
-        createChannel();
+            player = newPlayer();
+        } catch (Throwable t) {
+            // Degrade, never crash: an uncaught throw here kills the
+            // whole process (including MainActivity's first frame).
+            initFailed = true;
+            Log.e(TAG, "DriveMediaService init failed; service inert", t);
+            if (session != null) {
+                try { session.release(); } catch (Throwable ignored) {}
+                session = null;
+            }
+            player = null;
+        }
+        try {
+            createChannel();
+        } catch (Throwable t) {
+            Log.e(TAG, "Notification channel creation failed", t);
+        }
     }
 
     private MediaPlayer newPlayer() {
-        MediaPlayer p = MediaPlayer.create(this, R.raw.silence);
-        if (p != null) {
-            p.setLooping(true);
-            p.setVolume(0f, 0f);
+        try {
+            MediaPlayer p = MediaPlayer.create(this, R.raw.silence);
+            if (p != null) {
+                p.setLooping(true);
+                p.setVolume(0f, 0f);
+            }
+            return p;
+        } catch (Throwable t) {
+            Log.e(TAG, "MediaPlayer.create failed", t);
+            return null;
         }
-        return p;
     }
 
     // ---- MediaBrowserServiceCompat ----
@@ -171,6 +209,7 @@ public class DriveMediaService extends MediaBrowserServiceCompat {
     }
 
     private void updateState(int state) {
+        if (session == null) return; // inert after failed init (v2.2.1)
         PlaybackStateCompat.Builder b = new PlaybackStateCompat.Builder()
                 .setActions(PlaybackStateCompat.ACTION_PLAY | PlaybackStateCompat.ACTION_PAUSE
                         | PlaybackStateCompat.ACTION_PLAY_PAUSE | PlaybackStateCompat.ACTION_STOP)
@@ -226,6 +265,7 @@ public class DriveMediaService extends MediaBrowserServiceCompat {
     }
 
     private void postNotification(boolean live) {
+        if (session == null) return; // inert after failed init (v2.2.1)
         // Notification.MediaStyle needs the framework token; the compat
         // token wraps it (API 21+ getToken() returns the framework token).
         MediaSession.Token fwToken = (MediaSession.Token) session.getSessionToken().getToken();

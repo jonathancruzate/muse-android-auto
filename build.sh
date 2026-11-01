@@ -13,8 +13,8 @@ BT="$SDK/build-tools/35.0.0"
 ANDROID_JAR="$SDK/platforms/android-35/android.jar"
 KS="keystore/musedrive.keystore"
 KS_PASS_FILE="keystore/keystore-password.txt"
-VERSION_CODE=4
-VERSION_NAME="2.2.0"
+VERSION_CODE=5
+VERSION_NAME="2.2.1"
 
 rm -rf build
 mkdir -p build/gen build/classes build/dex keystore res/raw

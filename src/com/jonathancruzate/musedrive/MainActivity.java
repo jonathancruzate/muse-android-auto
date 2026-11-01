@@ -74,7 +74,20 @@ public class MainActivity extends Activity {
         }));
 
         setContentView(root);
-        startService(new Intent(this, DriveMediaService.class));
+        // v2.2.1: start the media service AFTER the first frame, off
+        // onCreate's critical path. A synchronous startService here
+        // runs DriveMediaService.onCreate inline; if that init ever
+        // throws on a given device build, the process dies before
+        // this UI draws (the v2.2.0 "won't even open" failure).
+        root.post(new Runnable() {
+            @Override public void run() {
+                try {
+                    startService(new Intent(MainActivity.this, DriveMediaService.class));
+                } catch (Exception e) {
+                    // Degrade: the test panel still works without the service.
+                }
+            }
+        });
     }
 
     @Override
