@@ -12,7 +12,8 @@
 
     <application
         android:label="Muse for Android Auto"
-        android:icon="@drawable/ic_launcher"
+        android:icon="@mipmap/ic_launcher"
+        android:roundIcon="@mipmap/ic_launcher_round"
         android:allowBackup="false">
 
         <!-- Android Auto media app declaration -->

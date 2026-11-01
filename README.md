@@ -1,4 +1,4 @@
-# Muse for Android Auto — Android Auto media app (v2.2.2, built 2026-10-31)
+# Muse for Android Auto — Android Auto media app (v2.3.0, built 2026-11-01)
 
 > **Renamed in v2.2.2:** the app's display name is now **Muse for
 > Android Auto** (Jonathan's order, 2026-10-31). It was formerly
@@ -271,3 +271,21 @@ Android Auto"). No behavior changes.
   `muse-android-auto` (GitHub redirects the old repo URL).
 - APK: `Muse-Drive-2.2.2.apk`, SHA-256
   `e7c0029bf0cb2a5ae77319ebeabccc30121410586586c0427ae09d112cba6424`.
+
+## v2.3.0 — Muse Widget app icon (2026-11-01, Jonathan's order)
+
+All Muse APKs now carry the same app icon as the Muse Widget
+app. This app's blue vector mic-circle icon
+(`res/drawable/ic_launcher.xml`) is replaced by the widget's
+launcher art — the blue M on transparency, from his M art — as
+`res/mipmap-*/ic_launcher.png` + `ic_launcher_round.png` (mdpi
+48px through xxxhdpi 192px), with manifest `icon`/`roundIcon`
+pointed at the mipmaps. Verified: apksigner OK, same signing
+cert (`314b8616…`), upgrades in place over v2.2.2; the icon
+inside the built APK is byte-identical to the icon inside the
+Muse Widget's own shipped APK (`Muse-Widget-4.10.0.apk`, xxhdpi
+md5 `9ecb2bfe…`). Muse Voice Mode Shortcut got the same icon
+the same night (its v1.4.0). No behavior changes.
+APK: `Muse-Drive-2.3.0.apk`, 693,719 B, SHA-256
+`01c0faf5e2d38679c2c382d67e0c7c5bc0f7670f9f50d8e0c49bf6674adbdebd`,
+versionCode 7.
