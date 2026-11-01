@@ -11,7 +11,7 @@
     <uses-permission android:name="android.permission.VIBRATE" />
 
     <application
-        android:label="Muse Drive"
+        android:label="Muse for Android Auto"
         android:icon="@drawable/ic_launcher"
         android:allowBackup="false">
 
@@ -31,7 +31,7 @@
 
         <service
             android:name=".DriveMediaService"
-            android:label="Muse Drive"
+            android:label="Muse for Android Auto"
             android:exported="true">
             <intent-filter>
                 <action android:name="android.media.browse.MediaBrowserService" />

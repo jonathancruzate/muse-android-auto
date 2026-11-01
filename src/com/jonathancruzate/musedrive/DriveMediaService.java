@@ -96,7 +96,7 @@ public class DriveMediaService extends MediaBrowserServiceCompat {
                     | MediaSessionCompat.FLAG_HANDLES_TRANSPORT_CONTROLS);
             session.setMetadata(new MediaMetadataCompat.Builder()
                     .putString(MediaMetadataCompat.METADATA_KEY_TITLE, "Muse voice line")
-                    .putString(MediaMetadataCompat.METADATA_KEY_ARTIST, "Muse Drive")
+                    .putString(MediaMetadataCompat.METADATA_KEY_ARTIST, "Muse for Android Auto")
                     .putString(MediaMetadataCompat.METADATA_KEY_ALBUM, "Play = mic live, Pause = mute, Stop = hang up")
                     .build());
             setSessionToken(session.getSessionToken());
@@ -253,7 +253,7 @@ public class DriveMediaService extends MediaBrowserServiceCompat {
         NotificationManager nm = (NotificationManager) getSystemService(Context.NOTIFICATION_SERVICE);
         if (nm != null) {
             nm.createNotificationChannel(new NotificationChannel(
-                    CHANNEL_ID, "Muse Drive", NotificationManager.IMPORTANCE_LOW));
+                    CHANNEL_ID, "Muse for Android Auto", NotificationManager.IMPORTANCE_LOW));
         }
     }
 
@@ -271,7 +271,7 @@ public class DriveMediaService extends MediaBrowserServiceCompat {
         MediaSession.Token fwToken = (MediaSession.Token) session.getSessionToken().getToken();
         Notification.Builder nb = new Notification.Builder(this, CHANNEL_ID)
                 .setSmallIcon(android.R.drawable.ic_btn_speak_now)
-                .setContentTitle("Muse Drive")
+                .setContentTitle("Muse for Android Auto")
                 .setContentText(live ? "Mic live" : "Muted")
                 .setStyle(new Notification.MediaStyle().setMediaSession(fwToken))
                 .addAction(android.R.drawable.ic_btn_speak_now, "Talk",

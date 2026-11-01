@@ -28,19 +28,19 @@ public class MainActivity extends Activity {
         root.setPadding(pad, pad, pad, pad);
 
         TextView title = new TextView(this);
-        title.setText("Muse Drive");
+        title.setText("Muse for Android Auto");
         title.setTextSize(24);
         root.addView(title);
 
         TextView body = new TextView(this);
-        body.setText("\nIn the car: open Android Auto, pick Muse Drive as the media source, "
+        body.setText("\nIn the car: open Android Auto, pick Muse for Android Auto as the media source, "
                 + "open the Muse voice line.\n"
                 + "Play = mic live - Pause = mute - Stop = hang up.\n\n"
                 + "Eyes-free on the phone, once a session is armed (Talk or Play):\n"
                 + "hold Volume DOWN = mute - hold Volume UP = unmute - "
                 + "hold BOTH volume buttons = hang up.\n\n"
                 + "One-time setup:\n"
-                + "1. Enable the Muse Drive accessibility service (hang-up tap + volume keys).\n"
+                + "1. Enable the Muse for Android Auto accessibility service (hang-up tap + volume keys).\n"
                 + "2. Android Auto > Developer settings > Unknown sources ON.\n");
         body.setTextSize(15);
         root.addView(body);

@@ -57,7 +57,7 @@ public final class SessionControl {
             a11y.endCall();
         } else {
             Toast.makeText(ctx,
-                    "Hang up needs the Muse Drive accessibility service enabled",
+                    "Hang up needs the Muse for Android Auto accessibility service enabled",
                     Toast.LENGTH_LONG).show();
         }
         SessionState.armed = false;

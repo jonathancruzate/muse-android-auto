@@ -1,4 +1,11 @@
-# Muse Drive — Android Auto media app (v2.2.1, built 2026-10-31)
+# Muse for Android Auto — Android Auto media app (v2.2.2, built 2026-10-31)
+
+> **Renamed in v2.2.2:** the app's display name is now **Muse for
+> Android Auto** (Jonathan's order, 2026-10-31). It was formerly
+> displayed as **Muse Drive** (v1.0.0–v2.2.1, below). Same package
+> (`com.jonathancruzate.musedrive`), same signing certificate, same
+> repo — only the public/display identity changed, and it upgrades
+> in place.
 
 An Android Auto app for the driving voice project, built at
 Jonathan's direct ask ("make an app for Android Auto") after the
@@ -235,10 +242,27 @@ the dex contains the new failure-logging path. APK:
    **Unknown sources**. (If it was already on, toggle it off/on
    and clear Android Auto's cache — not data.)
 2. Android Auto settings → **Customize launcher** → make sure
-   **Muse Drive** is checked; drag it toward the top.
-3. Phone Settings → Apps → **Muse Drive** → Battery →
+   **Muse for Android Auto** is checked; drag it toward the top.
+3. Phone Settings → Apps → **Muse for Android Auto** → Battery →
    **Unrestricted**; and Battery → Background usage limits →
-   Never sleeping apps → add Muse Drive.
-4. Open Muse Drive once on the phone (wakes it if Android had
-   auto-disabled it), then reconnect to the car and check the
-   launcher.
+   Never sleeping apps → add Muse for Android Auto.
+4. Open Muse for Android Auto once on the phone (wakes it if
+   Android had auto-disabled it), then reconnect to the car and
+   check the launcher.
+
+## v2.2.2 — renamed to Muse for Android Auto (same day, versionCode 6)
+
+Display-name rename only, at Jonathan's order ("Call it Muse for
+Android Auto"). No behavior changes.
+
+- Manifest `android:label` (app + media service) →
+  "Muse for Android Auto"; the phone UI title and setup text,
+  the Auto metadata artist, the phone notification title/channel
+  name, the accessibility-service description, and the hang-up
+  toast all carry the new name.
+- Package stays `com.jonathancruzate.musedrive`; signing
+  certificate unchanged (`314b8616…`), so v2.2.2 upgrades in
+  place over v2.2.1. The GitHub repo name (`muse-drive`) is
+  unchanged — only the app's display identity moved.
+- APK: `Muse-Drive-2.2.2.apk`, SHA-256
+  `e7c0029bf0cb2a5ae77319ebeabccc30121410586586c0427ae09d112cba6424`.

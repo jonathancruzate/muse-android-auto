@@ -1,5 +1,5 @@
 #!/bin/bash
-# Build Muse Drive (Android Auto media app) from source.
+# Build Muse for Android Auto (Android Auto media app) from source.
 # Toolchain: metamuse-widget tools/sdk (build-tools 35.0.0, platform
 # android-35), used READ-ONLY for compilation, + Temurin JDK 21.
 # No emulator is touched by this build.
@@ -13,8 +13,8 @@ BT="$SDK/build-tools/35.0.0"
 ANDROID_JAR="$SDK/platforms/android-35/android.jar"
 KS="keystore/musedrive.keystore"
 KS_PASS_FILE="keystore/keystore-password.txt"
-VERSION_CODE=5
-VERSION_NAME="2.2.1"
+VERSION_CODE=6
+VERSION_NAME="2.2.2"
 
 rm -rf build
 mkdir -p build/gen build/classes build/dex keystore res/raw
