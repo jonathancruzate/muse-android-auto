@@ -1,6 +1,6 @@
 <?xml version="1.0" encoding="utf-8"?>
 <manifest xmlns:android="http://schemas.android.com/apk/res/android"
-    package="com.jonathancruzate.musedrive">
+    package="com.jonathancruzate.museandroidauto">
 
     <uses-feature android:name="android.hardware.type.automotive" android:required="false" />
 
@@ -55,10 +55,10 @@
             android:name=".DriveReceiver"
             android:exported="true">
             <intent-filter>
-                <action android:name="com.jonathancruzate.musedrive.TALK" />
-                <action android:name="com.jonathancruzate.musedrive.MUTE" />
-                <action android:name="com.jonathancruzate.musedrive.UNMUTE" />
-                <action android:name="com.jonathancruzate.musedrive.END" />
+                <action android:name="com.jonathancruzate.museandroidauto.TALK" />
+                <action android:name="com.jonathancruzate.museandroidauto.MUTE" />
+                <action android:name="com.jonathancruzate.museandroidauto.UNMUTE" />
+                <action android:name="com.jonathancruzate.museandroidauto.END" />
             </intent-filter>
         </receiver>
     </application>

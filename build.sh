@@ -13,8 +13,8 @@ BT="$SDK/build-tools/35.0.0"
 ANDROID_JAR="$SDK/platforms/android-35/android.jar"
 KS="keystore/musedrive.keystore"
 KS_PASS_FILE="keystore/keystore-password.txt"
-VERSION_CODE=9
-VERSION_NAME="2.3.2"
+VERSION_CODE=10
+VERSION_NAME="2.4.0"
 
 rm -rf build
 mkdir -p build/gen build/classes build/dex keystore res/raw
@@ -148,6 +148,6 @@ echo "== package dex =="
 echo "== zipalign + sign =="
 "$BT/zipalign" -f 4 build/unsigned.apk build/aligned.apk
 "$BT/apksigner" sign --ks "$KS" --ks-pass "pass:$PASS" --key-pass "pass:$PASS" \
-  --out "Muse-Drive-$VERSION_NAME.apk" build/aligned.apk
-"$BT/apksigner" verify --print-certs "Muse-Drive-$VERSION_NAME.apk" | head -3
-ls -la "Muse-Drive-$VERSION_NAME.apk"
+  --out "Muse-Android-Auto-$VERSION_NAME.apk" build/aligned.apk
+"$BT/apksigner" verify --print-certs "Muse-Android-Auto-$VERSION_NAME.apk" | head -3
+ls -la "Muse-Android-Auto-$VERSION_NAME.apk"

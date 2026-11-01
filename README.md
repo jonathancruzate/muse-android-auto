@@ -1,11 +1,13 @@
-# Muse for Android Auto — Android Auto media app (v2.3.1, built 2026-11-01)
+# Muse for Android Auto — Android Auto media app (v2.4.0, built 2026-11-01)
 
 > **Renamed in v2.2.2:** the app's display name is now **Muse for
 > Android Auto** (Jonathan's order, 2026-10-31). It was formerly
 > displayed as **Muse Drive** (v1.0.0–v2.2.1, below). Same package
 > (`com.jonathancruzate.musedrive`), same signing certificate, same
 > repo — only the public/display identity changed, and it upgrades
-> in place.
+> in place. **Superseded in v2.4.0 (below):** the package itself
+> was renamed to `com.jonathancruzate.museandroidauto` to match
+> the GitHub project name, which requires a reinstall.
 
 An Android Auto app for the driving voice project, built at
 Jonathan's direct ask ("make an app for Android Auto") after the
@@ -18,7 +20,7 @@ session's eyes-free controls.
 
 ## What it is
 
-- Package `com.jonathancruzate.musedrive`: a
+- Package `com.jonathancruzate.museandroidauto`: a
   `MediaBrowserService` + `MediaSession` media app (framework
   APIs in v1–v2.1; androidx.media Compat since v2.2.0, see the
   v2.2.0 section below),
@@ -33,7 +35,7 @@ session's eyes-free controls.
     ungated ACTION_ASSIST intent into com.facebook.aura), **Mute**,
     **Hang up**.
 - Mute/unmute/end are explicit broadcasts addressed to MacroDroid
-  (`com.jonathancruzate.musedrive.MUTE/.UNMUTE/.END`); the driving
+  (`com.jonathancruzate.museandroidauto.MUTE/.UNMUTE/.END`); the driving
   macros carry matching IntentReceivedTriggers and do the real work
   (system mic mute via MuteMicrophoneAction; hang-up macro). No app
   can reach into Meta Muse's own session — this is the control
@@ -46,7 +48,7 @@ session's eyes-free controls.
 `./build.sh` — javac/d8/aapt2 via the meta-muse-widget SDK
 (read-only toolchain use; no emulator touched), own keystore in
 `keystore/` (password file alongside, 0600). Output:
-`Muse-Drive-1.0.0.apk`, signed, apksigner-verified; manifest dump
+`Muse-Android-Auto-2.4.0.apk`, signed, apksigner-verified; manifest dump
 confirms the `com.google.android.gms.car.application` meta-data,
 the exported MediaBrowserService, and all four action strings in
 the DEX.
@@ -56,7 +58,7 @@ the DEX.
 1. Install the APK; import the four driving macros.
 2. Android Auto → Settings → Developer settings → **Unknown
    sources** ON (required for any sideloaded Auto app to appear).
-3. In the car: select Muse Drive as the media source, open the
+3. In the car: select Muse for Android Auto as the media source, open the
    Muse voice line. Checks: (a) it appears at all (framework
    MediaBrowserService acceptance is the big unknown — if Auto
    ignores it, v2 swaps in androidx.media's
@@ -442,3 +444,50 @@ install, open, tap Talk/Mute/Hang up on the test panel, and
 confirm the crash log panel shows no new UNCAUGHT entry; the
 media service should now start (the panel's status line and a
 working media notification are the signs).
+
+## v2.4.0 — package + APK renamed to match the GitHub project name (2026-11-01, versionCode 10)
+
+Jonathan's order (2026-11-01): all APKs and package names match
+their GitHub project names. This project is
+`jonathancruzate/muse-android-auto`, so v2.4.0 renames the app's
+identity to match — a rename-only release, no behavior changes:
+
+- **Package:** `com.jonathancruzate.musedrive` →
+  `com.jonathancruzate.museandroidauto` (manifest package
+  attribute, all 9 Java sources moved to
+  `src/com/jonathancruzate/museandroidauto/`, and
+  `DriveActions.PKG`).
+- **Broadcast actions:** the four DriveReceiver intent actions
+  moved with the package —
+  `com.jonathancruzate.museandroidauto.TALK/.MUTE/.UNMUTE/.END`.
+  Because the MacroDroid macros carry matching
+  IntentReceivedTriggers, `macros/build_macros.py` was updated
+  and the macros regenerated; the diff of the regenerated
+  `hang-up-muse-end.macro` / `mute-claude.macro` /
+  `unmute-claude.macro` is exactly the one action string each,
+  and `talk-to-muse-start.macro` is byte-identical (it uses
+  ACTION_ASSIST, not a package action). **The three changed
+  macros must be re-imported on the phone** or the volume-key /
+  QS-tile mute, unmute, and hang-up triggers will not reach the
+  renamed app.
+- **APK filename:** `Muse-Drive-<version>.apk` →
+  `Muse-Android-Auto-<version>.apk` (build.sh output).
+- App display label unchanged: "Muse for Android Auto".
+- Signing certificate unchanged (`314b8616…`); the keystore is
+  not regenerated. But because the *package name* is the app's
+  identity on Android, **v2.4.0 does NOT upgrade in place** —
+  uninstall the old `com.jonathancruzate.musedrive` app and
+  install v2.4.0 fresh (Jonathan accepted the reinstall). After
+  reinstalling, **re-enable the accessibility service** for the
+  renamed app in Android Settings (accessibility grants are
+  per-package and do not carry over), and re-import the three
+  updated macros.
+- The v2.3.2 build guards (empty-library fetch guard + dex
+  completeness guard) are unchanged and pass on this build.
+
+Verified: `apksigner` OK, same cert (`314b8616…`);
+`aapt2 dump badging` shows package
+`com.jonathancruzate.museandroidauto`, versionCode 10,
+versionName 2.4.0, label "Muse for Android Auto".
+APK: `Muse-Android-Auto-2.4.0.apk`, 738,775 B, SHA-256
+`88a98c06b3654b1f5abd3b56dd1d93492d574ec76486d3a990f40edbc650bb20`.
