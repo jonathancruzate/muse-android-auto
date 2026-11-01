@@ -1,4 +1,4 @@
-# Muse for Android Auto — Android Auto media app (v2.4.0, built 2026-11-01)
+# Muse for Android Auto — Android Auto media app (v2.4.1, built 2026-11-01)
 
 > **Renamed in v2.2.2:** the app's display name is now **Muse for
 > Android Auto** (Jonathan's order, 2026-10-31). It was formerly
@@ -8,6 +8,11 @@
 > in place. **Superseded in v2.4.0 (below):** the package itself
 > was renamed to `com.jonathancruzate.museandroidauto` to match
 > the GitHub project name, which requires a reinstall.
+> **Superseded in v2.4.1 (below):** the package was renamed
+> again to `com.jonathancruzate.metamuseandroidauto`, aligning
+> with the `com.jonathancruzate.metamuse<product>` family package
+> taxonomy of the Meta Muse companion apps (Jonathan's order,
+> 2026-11-01) — another reinstall.
 
 An Android Auto app for the driving voice project, built at
 Jonathan's direct ask ("make an app for Android Auto") after the
@@ -20,7 +25,7 @@ session's eyes-free controls.
 
 ## What it is
 
-- Package `com.jonathancruzate.museandroidauto`: a
+- Package `com.jonathancruzate.metamuseandroidauto`: a
   `MediaBrowserService` + `MediaSession` media app (framework
   APIs in v1–v2.1; androidx.media Compat since v2.2.0, see the
   v2.2.0 section below),
@@ -35,7 +40,7 @@ session's eyes-free controls.
     ungated ACTION_ASSIST intent into com.facebook.aura), **Mute**,
     **Hang up**.
 - Mute/unmute/end are explicit broadcasts addressed to MacroDroid
-  (`com.jonathancruzate.museandroidauto.MUTE/.UNMUTE/.END`); the driving
+  (`com.jonathancruzate.metamuseandroidauto.MUTE/.UNMUTE/.END`); the driving
   macros carry matching IntentReceivedTriggers and do the real work
   (system mic mute via MuteMicrophoneAction; hang-up macro). No app
   can reach into Meta Muse's own session — this is the control
@@ -48,7 +53,7 @@ session's eyes-free controls.
 `./build.sh` — javac/d8/aapt2 via the meta-muse-widget SDK
 (read-only toolchain use; no emulator touched), own keystore in
 `keystore/` (password file alongside, 0600). Output:
-`Muse-Android-Auto-2.4.0.apk`, signed, apksigner-verified; manifest dump
+`Muse-Android-Auto-2.4.1.apk`, signed, apksigner-verified; manifest dump
 confirms the `com.google.android.gms.car.application` meta-data,
 the exported MediaBrowserService, and all four action strings in
 the DEX.
@@ -491,3 +496,95 @@ Verified: `apksigner` OK, same cert (`314b8616…`);
 versionName 2.4.0, label "Muse for Android Auto".
 APK: `Muse-Android-Auto-2.4.0.apk`, 738,775 B, SHA-256
 `88a98c06b3654b1f5abd3b56dd1d93492d574ec76486d3a990f40edbc650bb20`.
+
+## v2.4.1 — package aligned to the metamuse family scheme (2026-11-01, versionCode 11)
+
+Jonathan refined the naming scheme the same day v2.4.0 was
+built (before v2.4.0 was ever released): **all** of his app
+packages now follow one family pattern under his domain —
+`com.jonathancruzate.metamuse<product>` — mirroring how Meta's
+own Muse app (`com.facebook.aura`) sits flat under its company
+domain. v2.4.1 supersedes the unreleased v2.4.0 and is the
+first build under the final scheme; it is rename-only, no
+behavior changes:
+
+- **Package:** `com.jonathancruzate.museandroidauto` →
+  `com.jonathancruzate.metamuseandroidauto` (manifest package
+  attribute, all 9 Java sources moved to
+  `src/com/jonathancruzate/metamuseandroidauto/`, and
+  `DriveActions.PKG`, from which the action constants derive).
+- **Broadcast actions:** moved with the package —
+  `com.jonathancruzate.metamuseandroidauto.TALK/.MUTE/.UNMUTE/.END`.
+  `macros/build_macros.py` was updated and the macros
+  regenerated; the diff against the v2.4.0-generated macros is
+  exactly the one action string each in `hang-up-muse-end`,
+  `mute-claude`, and `unmute-claude`, and
+  `talk-to-muse-start.macro` is byte-identical. **The three
+  changed macros must be re-imported on the phone**, same as
+  for v2.4.0.
+- **APK filename:** unchanged pattern —
+  `Muse-Android-Auto-<version>.apk` (the filename follows the
+  GitHub repo name; only the package follows the family
+  scheme).
+- App display label unchanged: "Muse for Android Auto".
+- Signing certificate unchanged (`314b8616…`); the keystore
+  (still named `musedrive.keystore`, alias `musedrive`) is not
+  regenerated. Because the package name changed again,
+  v2.4.1 **does NOT upgrade in place** over either the old
+  `com.jonathancruzate.musedrive` app or a sideloaded v2.4.0 —
+  uninstall and install fresh, then **re-enable the
+  accessibility service** for the renamed app (grants are
+  per-package), and re-import the three updated macros.
+- The v2.3.2 build guards (empty-library fetch guard + dex
+  completeness guard) are unchanged and pass on this build;
+  the shipped DEX contains zero old-package strings.
+
+Verified: `apksigner` OK, same cert (`314b8616…`);
+`aapt2 dump badging` shows package
+`com.jonathancruzate.metamuseandroidauto`, versionCode 11,
+versionName 2.4.1, label "Muse for Android Auto".
+APK: `Muse-Android-Auto-2.4.1.apk`, 738,775 B, SHA-256
+`5f712cfed875d918b43b020634ced10618e82f0516bdbe491e0e1ed234a3b203`.
+
+## v2.5.0 — package renamed to the Meta Muse family taxonomy (2026-11-01, versionCode 11)
+
+Minutes after v2.4.0 shipped, Jonathan refined the naming rule:
+his Meta Muse companion apps share one package family,
+`com.jonathancruzate.meta<product>` (the Muse Widget is
+`com.jonathancruzate.metamusewidget`, following Meta's own
+taxonomy for the Muse app family). v2.5.0 aligns this app:
+
+- **Package:** `com.jonathancruzate.museandroidauto` →
+  `com.jonathancruzate.metamuseandroidauto` (manifest package
+  attribute, all 9 Java package declarations, and
+  `DriveActions.PKG`; the four receiver actions derive from it:
+  `com.jonathancruzate.metamuseandroidauto.TALK/.MUTE/.UNMUTE/.END`).
+- **Macros:** `macros/build_macros.py` action strings updated
+  and the macros regenerated — regeneration against the
+  already-renamed files is byte-identical, and each macro
+  carries exactly the one new action string (`.END` / `.MUTE` /
+  `.UNMUTE`); `talk-to-muse-start.macro` uses ACTION_ASSIST and
+  has no package action. **The three macros must be
+  re-imported on the phone again** or the volume-key / QS-tile
+  mute, unmute, and hang-up triggers will not reach the
+  renamed app.
+- **APK filename unchanged:** `Muse-Android-Auto-<version>.apk`
+  (it already matches the GitHub project name).
+- App display label unchanged: "Muse for Android Auto".
+- Signing certificate unchanged (`314b8616…`); keystore not
+  regenerated. But the package name is the app's identity, so
+  **v2.5.0 does NOT upgrade in place over either earlier
+  package** — uninstall the old app and install v2.5.0 fresh
+  (Jonathan accepted the reinstall). After reinstalling,
+  **re-enable the accessibility service** for the renamed app
+  (grants are per-package), and re-import the three macros.
+- The v2.3.2 build guards (empty-library fetch guard + dex
+  completeness guard) are unchanged and pass on this build.
+
+Verified: `apksigner` OK, same cert (`314b8616…`);
+`aapt2 dump badging` shows package
+`com.jonathancruzate.metamuseandroidauto`, versionCode 11,
+versionName 2.5.0, label "Muse for Android Auto"; the shipped
+APK's DEX contains zero old-package strings.
+APK: `Muse-Android-Auto-2.5.0.apk`, 738,775 B, SHA-256
+`9738c88cb4ebcfcf4990f1f46c905c8907ba86be540862db266adaa37ff672ea`.
