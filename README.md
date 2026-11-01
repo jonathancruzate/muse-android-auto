@@ -518,10 +518,17 @@ behavior changes:
   `macros/build_macros.py` was updated and the macros
   regenerated; the diff against the v2.4.0-generated macros is
   exactly the one action string each in `hang-up-muse-end`,
-  `mute-claude`, and `unmute-claude`, and
+  `mute-muse`, and `unmute-muse`, and
   `talk-to-muse-start.macro` is byte-identical. **The three
   changed macros must be re-imported on the phone**, same as
   for v2.4.0.
+- **Macro filename correction (2026-11-01, Jonathan: "You're
+  muse not Claude"):** the two legacy macro files were renamed
+  `mute-claude.macro` → `mute-muse.macro` and
+  `unmute-claude.macro` → `unmute-muse.macro` (contents
+  unchanged apart from the v2.5.0 action strings; the generator
+  `macros/build_macros.py` emits the new names). Tooling and
+  filenames say Muse, never Claude.
 - **APK filename:** unchanged pattern —
   `Muse-Android-Auto-<version>.apk` (the filename follows the
   GitHub repo name; only the package follows the family
