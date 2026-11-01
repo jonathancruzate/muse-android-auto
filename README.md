@@ -43,7 +43,7 @@ session's eyes-free controls.
 
 ## Build
 
-`./build.sh` — javac/d8/aapt2 via the metamuse-widget SDK
+`./build.sh` — javac/d8/aapt2 via the meta-muse-widget SDK
 (read-only toolchain use; no emulator touched), own keystore in
 `keystore/` (password file alongside, 0600). Output:
 `Muse-Drive-1.0.0.apk`, signed, apksigner-verified; manifest dump
@@ -114,7 +114,7 @@ exact text/description labels) and taps it, starting the same
 session the deep link would have. Retries for ~7s while the UI
 renders; a short buzz confirms the tap landed. No URI is fired.
 
-Built on the VPS (muse@167.233.41.12:~/muse-drive) with the
+Built on the VPS (muse@167.233.41.12:~/muse-android-auto) with the
 box's own Android SDK — the first build after the 2026-10-31 SSH
 repair; same signing key, upgrades in place.
 
@@ -262,7 +262,12 @@ Android Auto"). No behavior changes.
   toast all carry the new name.
 - Package stays `com.jonathancruzate.musedrive`; signing
   certificate unchanged (`314b8616…`), so v2.2.2 upgrades in
-  place over v2.2.1. The GitHub repo name (`muse-drive`) is
-  unchanged — only the app's display identity moved.
+  place over v2.2.1. The GitHub repo name (`muse-drive`) was
+  unchanged in this release — only the app's display identity
+  moved. **Superseded 2026-11-01:** per Jonathan's rule that
+  every project name matches its project directory, the repo,
+  the local project directory, and the VPS build directory were
+  all renamed `muse-drive` / `driving-muse-voice` ->
+  `muse-android-auto` (GitHub redirects the old repo URL).
 - APK: `Muse-Drive-2.2.2.apk`, SHA-256
   `e7c0029bf0cb2a5ae77319ebeabccc30121410586586c0427ae09d112cba6424`.
