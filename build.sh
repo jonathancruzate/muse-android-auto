@@ -13,8 +13,8 @@ BT="$SDK/build-tools/35.0.0"
 ANDROID_JAR="$SDK/platforms/android-35/android.jar"
 KS="keystore/musedrive.keystore"
 KS_PASS_FILE="keystore/keystore-password.txt"
-VERSION_CODE=8
-VERSION_NAME="2.3.1"
+VERSION_CODE=9
+VERSION_NAME="2.3.2"
 
 rm -rf build
 mkdir -p build/gen build/classes build/dex keystore res/raw
@@ -68,11 +68,37 @@ fetch "androidx/media/media/1.7.0/media-1.7.0.aar" media-1.7.0.aar
 fetch "androidx/core/core/1.13.1/core-1.13.1.aar" core-1.13.1.aar
 fetch "androidx/versionedparcelable/versionedparcelable/1.1.1/versionedparcelable-1.1.1.aar" versionedparcelable-1.1.1.aar
 fetch "androidx/annotation/annotation/1.8.2/annotation-1.8.2.jar" annotation-1.8.2.jar
-fetch "androidx/collection/collection/1.4.5/collection-1.4.5.jar" collection-1.4.5.jar
-fetch "androidx/lifecycle/lifecycle-common/2.8.4/lifecycle-common-2.8.4.jar" lifecycle-common-2.8.4.jar
+# v2.3.2 ROOT-CAUSE FIX: the versions below are pinned to the last
+# pre-Kotlin-Multiplatform artifacts (and the exact versions media
+# 1.7.0 / core 1.13.1 declare in their own POMs). The previously
+# fetched collection-1.4.5.jar and lifecycle-common-2.8.4.jar are
+# KMP *metadata* jars — they contain .knm files and ZERO .class
+# files — so d8 silently dexed nothing from them, and the shipped
+# APK referenced androidx.collection.ArrayMap without defining it.
+# MediaBrowserServiceCompat.<init> creates an ArrayMap, so EVERY
+# DriveMediaService instantiation died with NoClassDefFoundError
+# before onCreate — the v2.2.0 "won't open" crash and the v2.3.x
+# "crashing frequently" loop (proven by the on-device CrashLog
+# trace captured 2026-11-01, Jonathan's screenshot 14:54 EST).
+# A raw curl does NOT follow Gradle module-metadata redirects to
+# the -android variants; never fetch a bare *.jar for an androidx
+# artifact that has gone KMP. The fetch guard below fails the
+# build if a runtime library ever arrives empty again.
+fetch "androidx/collection/collection/1.2.0/collection-1.2.0.jar" collection-1.2.0.jar
+fetch "androidx/lifecycle/lifecycle-common/2.6.2/lifecycle-common-2.6.2.jar" lifecycle-common-2.6.2.jar
+fetch "androidx/lifecycle/lifecycle-runtime/2.6.2/lifecycle-runtime-2.6.2.aar" lifecycle-runtime-2.6.2.aar
+fetch "androidx/interpolator/interpolator/1.0.0/interpolator-1.0.0.aar" interpolator-1.0.0.aar
 fetch "androidx/arch/core/core-common/2.2.0/core-common-2.2.0.jar" core-common-2.2.0.jar
+fetch "androidx/arch/core/core-runtime/2.2.0/core-runtime-2.2.0.aar" core-runtime-2.2.0.aar
 fetch "androidx/concurrent/concurrent-futures/1.1.0/concurrent-futures-1.1.0.jar" concurrent-futures-1.1.0.jar
-for aar in media core versionedparcelable; do
+# Fetch guard: every runtime library must contain real classes.
+# (annotation-*.jar is compile-only and exempt: androidx
+# annotations are CLASS-retention and never resolved at runtime.)
+for jar in libs/collection-*.jar libs/lifecycle-common-*.jar libs/core-common-*.jar libs/concurrent-futures-*.jar; do
+  n=$(unzip -l "$jar" | grep -c '\.class' || true)
+  if [ "$n" -eq 0 ]; then echo "FATAL: $jar contains 0 .class files (KMP metadata jar?) — refusing to build"; exit 1; fi
+done
+for aar in media core versionedparcelable lifecycle-runtime interpolator core-runtime; do
   jar=$(ls libs/${aar}-*.aar | head -1)
   name=$(basename "$jar" .aar)
   if [ ! -f "build/libsjar/${name}-classes.jar" ]; then
@@ -80,8 +106,12 @@ for aar in media core versionedparcelable; do
     mv "build/libsjar/${name}/classes.jar" "build/libsjar/${name}-classes.jar"
   fi
 done
+for jar in build/libsjar/*-classes.jar; do
+  n=$(unzip -l "$jar" | grep -c '\.class' || true)
+  if [ "$n" -eq 0 ]; then echo "FATAL: $jar contains 0 .class files — refusing to build"; exit 1; fi
+done
 CP_LIBS=$(ls build/libsjar/*-classes.jar libs/annotation-*.jar libs/collection-*.jar libs/lifecycle-common-*.jar libs/core-common-*.jar libs/concurrent-futures-*.jar | tr '\n' ':')
-DEX_LIBS=$(ls build/libsjar/*-classes.jar libs/collection-*.jar libs/concurrent-futures-*.jar)
+DEX_LIBS=$(ls build/libsjar/*-classes.jar libs/collection-*.jar libs/lifecycle-common-*.jar libs/core-common-*.jar libs/concurrent-futures-*.jar)
 
 echo "== javac =="
 find src build/gen -name "*.java" > build/sources.txt
@@ -89,6 +119,28 @@ javac -source 8 -target 8 -bootclasspath "$ANDROID_JAR" -cp "$CP_LIBS" -d build/
 
 echo "== d8 =="
 "$BT/d8" --release --min-api 29 --lib "$ANDROID_JAR" --output build/dex $(find build/classes -name "*.class") $DEX_LIBS
+
+echo "== dex completeness guard (v2.3.2) =="
+# Fail the build if the dex REFERENCES any androidx class it does
+# not DEFINE (androidx.annotation exempt — never resolved at
+# runtime). This is the exact defect that shipped in v2.2.0–v2.3.1
+# (ArrayMap referenced, never defined, NoClassDefFoundError in
+# MediaBrowserServiceCompat.<init>); it must never ship again.
+"$BT/dexdump" -f build/dex/classes.dex | grep "Class descriptor" | sed "s/.*: *//; s/'//g" | sort -u > build/defined.txt
+# Exempt: androidx.annotation (never resolved at runtime) and
+# library R classes (Landroidx/.../R$*;) — resource stubs for
+# library-internal layouts this app never inflates (it uses no
+# NotificationCompat / ComponentActivity code paths, and the raw
+# build links no library resources, so those paths are unusable
+# by construction, with or without the stub).
+strings build/dex/classes.dex | grep -oE "Landroidx/[a-zA-Z0-9/\$_]+;" | grep -v "^Landroidx/annotation/" | grep -vE "/R\\\$[^;]*;|/R;" | sort -u > build/referenced.txt
+missing=$(comm -23 build/referenced.txt build/defined.txt)
+if [ -n "$missing" ]; then
+  echo "FATAL: dex references androidx classes it does not define:"
+  echo "$missing"
+  exit 1
+fi
+echo "dex guard OK: all referenced androidx classes are defined"
 
 echo "== package dex =="
 (cd build/dex && zip -q ../unsigned.apk classes.dex)

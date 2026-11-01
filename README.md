@@ -362,3 +362,83 @@ upgrades in place over v2.3.0. APK: `Muse-Drive-2.3.1.apk`,
 the DEX contains the CrashLog capture path. On-device
 verification is Jonathan's: install, open, use in Auto; Device
 Care should stop flagging it.
+
+## v2.3.2 — ROOT CAUSE FIX (2026-11-01, versionCode 9)
+
+The crash is found and fixed, with the trace to prove it.
+v2.3.1's CrashLog captured it on-device within minutes of
+install; Jonathan screenshotted the panel back at 14:54 EST:
+
+```
+2026-11-01 14:54:20 EST — UNCAUGHT on main
+java.lang.NoClassDefFoundError: Failed resolution of:
+  Landroidx/collection/ArrayMap;
+  at androidx.media.MediaBrowserServiceCompat.<init>
+    (MediaBrowserServiceCompat.java:185)
+  at com.jonathancruzate.musedrive.DriveMediaService.<init>
+  at android.app.AppComponentFactory.instantiateService(...)
+  at android.app.ActivityThread.handleCreateService(...)
+```
+
+Root cause: a build defect, present since the v2.2.0 androidx
+migration — NOT a code bug in DriveMediaService, which is why
+the v2.2.1 onCreate hardening and the v2.3.1 guards could never
+have fixed it (the failure is in the service's CONSTRUCTOR,
+before onCreate runs):
+
+- `build.sh` fetched `androidx.collection:collection:1.4.5` and
+  `androidx.lifecycle:lifecycle-common:2.8.4` as bare JARs from
+  Google's Maven repo. Since those libraries went Kotlin
+  Multiplatform, the bare JAR at that path is a *metadata* jar
+  (.knm files, **zero .class files**); the real Android classes
+  live in the `-android` AAR variants that Gradle reaches via
+  module-metadata redirects — which a raw `curl` does not follow.
+- d8 therefore dexed nothing from them, silently. The shipped
+  APKs (v2.2.0, v2.2.1, v2.2.2, v2.3.0, v2.3.1) *referenced*
+  `androidx.collection.ArrayMap` but never *defined* it.
+- `MediaBrowserServiceCompat.<init>` creates an ArrayMap, so
+  every `DriveMediaService` instantiation died instantly —
+  when MainActivity started the service (v2.2.0's "won't even
+  open"), and every time Android Auto / the system tried to
+  create the service afterwards (v2.3.x's "crashing
+  frequently", Samsung Device Care's warning).
+
+Verified pre-fix by binary inspection: the v2.3.1 dex defines
+no `androidx/collection/*` classes at all; 12 referenced
+androidx classes were undefined (5 collection, 6 lifecycle,
+1 interpolator).
+
+Fix (build.sh only; no Java changes):
+
+- collection pinned to **1.2.0** and lifecycle-common to
+  **2.6.2** — the last pre-KMP plain-JAR releases, and the exact
+  versions media 1.7.0 / core 1.13.1 declare in their own POMs.
+- Added the missing AARs: lifecycle-runtime 2.6.2 and
+  interpolator 1.0.0 (their classes were referenced, never
+  fetched), and arch core-runtime 2.2.0; core-common's jar is
+  now actually dexed (it was compile-classpath only).
+- **Two build guards, so this class of bug cannot ship again:**
+  (1) a fetch guard fails the build if any runtime library
+  contains 0 `.class` files; (2) a dex completeness guard fails
+  the build if the finished dex references any androidx class
+  it does not define (exempt: androidx.annotation, which is
+  never resolved at runtime, and library `R$*` resource stubs
+  for library-internal layouts this app never inflates — the
+  raw build links no library resources, so those code paths
+  are unusable by construction). The guard caught the arch-core
+  and core-common gaps during this very build before passing.
+
+Verified: build passes both guards; `apksigner` OK, same cert
+(`314b8616…`), upgrades in place; `aapt2 dump badging` shows
+versionCode 9 / versionName 2.3.2; dexdump of the *shipped
+APK's* dex confirms `Landroidx/collection/ArrayMap;`,
+`ArraySet;`, and `SimpleArrayMap;` are now defined.
+APK: `Muse-Drive-2.3.2.apk`, 738,775 B, SHA-256
+`6e44d563b5a82b816ad7b96f90e16adc8139d150e50a39ef2615f0d52f976bb4`.
+
+The v2.3.1 hardening and CrashLog stay in — defense in depth,
+and CrashLog is what found this. On-device check for Jonathan:
+install, open, tap Talk/Mute/Hang up on the test panel, and
+confirm the crash log panel shows no new UNCAUGHT entry; the
+media service should now start (the panel's status line and a
+working media notification are the signs).
