@@ -1,4 +1,4 @@
-# Muse for Android Auto — Android Auto media app (v2.3.0, built 2026-11-01)
+# Muse for Android Auto — Android Auto media app (v2.3.1, built 2026-11-01)
 
 > **Renamed in v2.2.2:** the app's display name is now **Muse for
 > Android Auto** (Jonathan's order, 2026-10-31). It was formerly
@@ -289,3 +289,76 @@ the same night (its v1.4.0). No behavior changes.
 APK: `Muse-Drive-2.3.0.apk`, 693,719 B, SHA-256
 `01c0faf5e2d38679c2c382d67e0c7c5bc0f7670f9f50d8e0c49bf6674adbdebd`,
 versionCode 7.
+
+## v2.3.1 — crash hardening + on-device crash capture (2026-11-01, versionCode 8)
+
+Jonathan reported the app "keeps crashing again" (2026-11-01
+~14:46 EST). Corroboration found before building: Samsung Device
+Care posted a notification at 14:41 EST the same day — "Muse for
+Android Auto is crashing frequently. Put it in deep sleep to keep
+your phone running smoothly." — i.e. repeated process crashes,
+not a single failed open.
+
+Why no root cause was claimed: there is still no crash trace.
+v2.2.1's hardening was a theory (session-init throw) that was
+never verified on-device — v2.2.2 (rename) and v2.3.0 (icon)
+shipped on top of it untested — and the adb/logcat lane is
+retired/unreliable (a fresh `adb-ensure` attempt this session
+timed out; the phone is unreachable that way). The Oct 31 record
+already named the decisive evidence: a logcat trace or a
+screenshot of the crash. v2.3.1 is built to (a) close every
+remaining unguarded crash path so the crashes stop regardless of
+which one it was, and (b) capture the trace on-device if anything
+still fails, so the next report is evidence, not a theory.
+
+Unguarded paths closed (each was reachable from Android Auto
+transport callbacks, the always-running accessibility service,
+notification broadcasts, or the test panel — one throw killed
+the whole process, and system restarts made it "frequent"):
+
+- `DriveMediaService.reflectPlaying/Paused/Stopped` ran
+  MediaPlayer calls unguarded. MediaPlayer throws
+  `IllegalStateException` in the wrong state; in particular
+  `reflectStopped` called `stop()` whenever `isPlaying()` was
+  true and `isPlaying()` itself throws after release / in the
+  error state, and an audio-focus-loss pause raced Stop. Now:
+  all reflect* are catch-`Throwable` guarded; all player calls go
+  through state-safe helpers (`isPlaying` wrapped, start retries
+  once via a recreated player, stop replaced by pause+recreate);
+  a player `OnErrorListener` consumes player errors so the player
+  can't sit in the error state where every later call throws.
+- `postNotification` cast the session token blind —
+  `(MediaSession.Token) session.getSessionToken().getToken()` —
+  a null/non-framework token threw. Now null-checked with a
+  no-MediaStyle fallback, and the whole method is guarded.
+- `updateState`, `requestFocus`/`abandonFocus` (which also now
+  don't stack a new focus request on every Play), `onLoadChildren`,
+  and `onDestroy` are guarded.
+- `SessionControl.talk/mute/unmute/end` are guarded end to end
+  (incl. the hang-up Toast, which can throw from non-activity
+  contexts on some builds).
+- `DriveAccessibilityService`: `onAccessibilityEvent`,
+  `onKeyEvent`, the voice-button hunt, `endCall`, and the node
+  walk/click helpers are guarded — stale accessibility nodes
+  (window changed mid-walk) now read as "not found", not a crash.
+  This service runs constantly, so a throw here was a background
+  crash loop matching Device Care's wording.
+- `DriveReceiver.onReceive` is guarded.
+
+Crash capture: new `CrashLog` — a default uncaught-exception
+handler records the trace to the app-private `last_crash.txt`
+before delegating to the system handler, guarded paths record
+their caught throwables there too, and MainActivity (now in a
+ScrollView) shows "Last recorded crash / failure" with a Clear
+button. If v2.3.1 still fails, open it on the phone and
+screenshot that panel back to Muse — that screenshot is the
+root-cause evidence.
+
+Verified: builds clean, same signing cert (`314b8616…`),
+upgrades in place over v2.3.0. APK: `Muse-Drive-2.3.1.apk`,
+697,815 B, SHA-256
+`f332dfb5590d6fc66ae81aea100035b49fd9368ea4febb5b59655f2cfcc3899b`;
+`aapt2 dump badging` shows versionCode 8 / versionName 2.3.1;
+the DEX contains the CrashLog capture path. On-device
+verification is Jonathan's: install, open, use in Auto; Device
+Care should stop flagging it.

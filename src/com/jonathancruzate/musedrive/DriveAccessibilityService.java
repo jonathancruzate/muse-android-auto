@@ -50,6 +50,7 @@ public class DriveAccessibilityService extends AccessibilityService {
     @Override
     protected void onServiceConnected() {
         instance = this;
+        CrashLog.install(this);
     }
 
     @Override
@@ -60,13 +61,18 @@ public class DriveAccessibilityService extends AccessibilityService {
 
     @Override
     public void onAccessibilityEvent(AccessibilityEvent event) {
-        // Window content is read on demand in endCall(); events only
-        // wake the voice-button hunt while a Talk is pending.
-        if (SessionState.awaitingVoiceTap && event != null
-                && event.getPackageName() != null
-                && "com.facebook.aura".contentEquals(event.getPackageName())) {
-            scheduleVoiceHunt();
-        }
+        // v2.3.1 guarded: this service runs constantly, so an
+        // uncaught throw here is a background crash loop — the
+        // exact "crashing frequently" pattern Device Care reports.
+        try {
+            // Window content is read on demand in endCall(); events only
+            // wake the voice-button hunt while a Talk is pending.
+            if (SessionState.awaitingVoiceTap && event != null
+                    && event.getPackageName() != null
+                    && "com.facebook.aura".contentEquals(event.getPackageName())) {
+                scheduleVoiceHunt();
+            }
+        } catch (Throwable t) { CrashLog.record(this, "onAccessibilityEvent", t); }
     }
 
     // ---- start voice (v2.1: tap Muse's own voice button) ----
@@ -104,6 +110,11 @@ public class DriveAccessibilityService extends AccessibilityService {
     }
 
     private boolean tryTapVoiceButton() {
+        try { return tryTapVoiceButtonInner(); }
+        catch (Throwable t) { CrashLog.record(this, "tryTapVoiceButton", t); return false; }
+    }
+
+    private boolean tryTapVoiceButtonInner() {
         AccessibilityNodeInfo root = getRootInActiveWindow();
         if (root == null || root.getPackageName() == null
                 || !"com.facebook.aura".contentEquals(root.getPackageName())) {
@@ -146,6 +157,12 @@ public class DriveAccessibilityService extends AccessibilityService {
 
     @Override
     protected boolean onKeyEvent(KeyEvent event) {
+        try { return onKeyEventInner(event); }
+        catch (Throwable t) { CrashLog.record(this, "onKeyEvent", t); return false; }
+    }
+
+    private boolean onKeyEventInner(KeyEvent event) {
+        if (event == null) return false;
         int code = event.getKeyCode();
         if (code != KeyEvent.KEYCODE_VOLUME_UP && code != KeyEvent.KEYCODE_VOLUME_DOWN) {
             return false;
@@ -210,6 +227,11 @@ public class DriveAccessibilityService extends AccessibilityService {
     // ---- hang up ----
 
     public void endCall() {
+        try { endCallInner(); }
+        catch (Throwable t) { CrashLog.record(this, "endCall", t); }
+    }
+
+    private void endCallInner() {
         AccessibilityNodeInfo root = getRootInActiveWindow();
         if (root != null) {
             // 1) view-id candidates (names from the REA DEX pass)
@@ -242,25 +264,35 @@ public class DriveAccessibilityService extends AccessibilityService {
     }
 
     private boolean searchByDescription(AccessibilityNodeInfo node, String label) {
-        if (node == null) return false;
-        CharSequence desc = node.getContentDescription();
-        if (desc != null && label.equalsIgnoreCase(desc.toString()) && clickNode(node)) {
-            return true;
+        // Stale nodes (window changed mid-walk) throw on access;
+        // treat that as "not found", never as a crash.
+        try {
+            if (node == null) return false;
+            CharSequence desc = node.getContentDescription();
+            if (desc != null && label.equalsIgnoreCase(desc.toString()) && clickNode(node)) {
+                return true;
+            }
+            for (int i = 0; i < node.getChildCount(); i++) {
+                if (searchByDescription(node.getChild(i), label)) return true;
+            }
+            return false;
+        } catch (Throwable t) {
+            return false;
         }
-        for (int i = 0; i < node.getChildCount(); i++) {
-            if (searchByDescription(node.getChild(i), label)) return true;
-        }
-        return false;
     }
 
     private boolean clickNode(AccessibilityNodeInfo node) {
-        AccessibilityNodeInfo n = node;
-        while (n != null) {
-            if (n.isClickable()) {
-                return n.performAction(AccessibilityNodeInfo.ACTION_CLICK);
+        try {
+            AccessibilityNodeInfo n = node;
+            while (n != null) {
+                if (n.isClickable()) {
+                    return n.performAction(AccessibilityNodeInfo.ACTION_CLICK);
+                }
+                n = n.getParent();
             }
-            n = n.getParent();
+            return false;
+        } catch (Throwable t) {
+            return false;
         }
-        return false;
     }
 }

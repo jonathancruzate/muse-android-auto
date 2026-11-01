@@ -23,47 +23,66 @@ public final class SessionControl {
 
     private SessionControl() {}
 
+    // v2.3.1: every method is catch-Throwable guarded + recorded.
+    // These are called from Android Auto transport callbacks, the
+    // accessibility service, notification broadcasts, and the test
+    // panel — an uncaught throw in any of them crashed the whole
+    // process (the "crashing frequently" reports).
+
     public static void talk(Context ctx) {
-        SessionState.armed = true;
-        SessionState.awaitingVoiceTap = true;
-        DriveActions.startClaudeAssist(ctx);
-        DriveMediaService svc = DriveMediaService.active;
-        if (svc != null) svc.reflectPlaying();
+        try {
+            CrashLog.install(ctx);
+            SessionState.armed = true;
+            SessionState.awaitingVoiceTap = true;
+            DriveActions.startClaudeAssist(ctx);
+            DriveMediaService svc = DriveMediaService.active;
+            if (svc != null) svc.reflectPlaying();
+        } catch (Throwable t) { CrashLog.record(ctx, "SessionControl.talk", t); }
     }
 
     public static void mute(Context ctx) {
-        Mic.set(ctx, true);
-        buzz(ctx, 350);
-        DriveMediaService svc = DriveMediaService.active;
-        if (svc != null) svc.reflectPaused();
+        try {
+            Mic.set(ctx, true);
+            buzz(ctx, 350);
+            DriveMediaService svc = DriveMediaService.active;
+            if (svc != null) svc.reflectPaused();
+        } catch (Throwable t) { CrashLog.record(ctx, "SessionControl.mute", t); }
     }
 
     public static void unmute(Context ctx) {
-        SessionState.armed = true;
-        Mic.set(ctx, false);
-        buzz(ctx, 80);
-        DriveMediaService svc = DriveMediaService.active;
-        if (svc != null) svc.reflectPlaying();
+        try {
+            SessionState.armed = true;
+            Mic.set(ctx, false);
+            buzz(ctx, 80);
+            DriveMediaService svc = DriveMediaService.active;
+            if (svc != null) svc.reflectPlaying();
+        } catch (Throwable t) { CrashLog.record(ctx, "SessionControl.unmute", t); }
     }
 
     public static void end(Context ctx) {
-        buzz(ctx, 120);
-        final Context appCtx = ctx.getApplicationContext();
-        new Handler(Looper.getMainLooper()).postDelayed(new Runnable() {
-            @Override public void run() { buzz(appCtx, 120); }
-        }, 200);
-        DriveAccessibilityService a11y = DriveAccessibilityService.instance;
-        if (a11y != null) {
-            a11y.endCall();
-        } else {
-            Toast.makeText(ctx,
-                    "Hang up needs the Muse for Android Auto accessibility service enabled",
-                    Toast.LENGTH_LONG).show();
-        }
-        SessionState.armed = false;
-        SessionState.awaitingVoiceTap = false;
-        DriveMediaService svc = DriveMediaService.active;
-        if (svc != null) svc.reflectStopped();
+        try {
+            buzz(ctx, 120);
+            final Context appCtx = ctx.getApplicationContext();
+            new Handler(Looper.getMainLooper()).postDelayed(new Runnable() {
+                @Override public void run() { buzz(appCtx, 120); }
+            }, 200);
+            DriveAccessibilityService a11y = DriveAccessibilityService.instance;
+            if (a11y != null) {
+                a11y.endCall();
+            } else {
+                // A Toast from a service/receiver context can itself
+                // throw on some builds; it is cosmetic, never fatal.
+                try {
+                    Toast.makeText(ctx,
+                            "Hang up needs the Muse for Android Auto accessibility service enabled",
+                            Toast.LENGTH_LONG).show();
+                } catch (Throwable ignored) {}
+            }
+            SessionState.armed = false;
+            SessionState.awaitingVoiceTap = false;
+            DriveMediaService svc = DriveMediaService.active;
+            if (svc != null) svc.reflectStopped();
+        } catch (Throwable t) { CrashLog.record(ctx, "SessionControl.end", t); }
     }
 
     public static void buzz(Context ctx, long ms) {

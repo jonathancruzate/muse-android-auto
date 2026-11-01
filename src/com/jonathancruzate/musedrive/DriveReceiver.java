@@ -9,6 +9,11 @@ import android.content.Intent;
 public class DriveReceiver extends BroadcastReceiver {
     @Override
     public void onReceive(Context context, Intent intent) {
+        try { onReceiveInner(context, intent); }
+        catch (Throwable t) { CrashLog.record(context, "DriveReceiver.onReceive", t); }
+    }
+
+    private void onReceiveInner(Context context, Intent intent) {
         if (intent == null || intent.getAction() == null) return;
         String a = intent.getAction();
         if (DriveActions.ACTION_TALK.equals(a)) {

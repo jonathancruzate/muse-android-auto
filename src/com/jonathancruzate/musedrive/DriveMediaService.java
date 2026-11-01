@@ -86,6 +86,7 @@ public class DriveMediaService extends MediaBrowserServiceCompat {
     @Override
     public void onCreate() {
         super.onCreate();
+        CrashLog.install(this);
         active = this;
         try {
             audioManager = (AudioManager) getSystemService(Context.AUDIO_SERVICE);
@@ -128,6 +129,16 @@ public class DriveMediaService extends MediaBrowserServiceCompat {
             if (p != null) {
                 p.setLooping(true);
                 p.setVolume(0f, 0f);
+                // An unhandled player error leaves the player in the
+                // error state where every later call throws; consume
+                // it and let the reflect* guards recreate the player.
+                p.setOnErrorListener(new MediaPlayer.OnErrorListener() {
+                    @Override
+                    public boolean onError(MediaPlayer mp, int what, int extra) {
+                        Log.e(TAG, "MediaPlayer error what=" + what + " extra=" + extra);
+                        return true;
+                    }
+                });
             }
             return p;
         } catch (Throwable t) {
@@ -145,16 +156,25 @@ public class DriveMediaService extends MediaBrowserServiceCompat {
 
     @Override
     public void onLoadChildren(String parentId, Result<List<MediaBrowserCompat.MediaItem>> result) {
-        List<MediaBrowserCompat.MediaItem> items = new ArrayList<>();
-        if (ROOT_ID.equals(parentId)) {
-            MediaDescriptionCompat desc = new MediaDescriptionCompat.Builder()
-                    .setMediaId(LINE_ID)
-                    .setTitle("Muse voice line")
-                    .setSubtitle("Play = mic live - Pause = mute - Stop = hang up")
-                    .build();
-            items.add(new MediaBrowserCompat.MediaItem(desc, MediaBrowserCompat.MediaItem.FLAG_PLAYABLE));
+        // v2.3.1: guarded — a throw here is called by Android Auto /
+        // the system browser client, and an uncaught throw reads to
+        // the user as the app "crashing" in the car.
+        try {
+            List<MediaBrowserCompat.MediaItem> items = new ArrayList<>();
+            if (ROOT_ID.equals(parentId)) {
+                MediaDescriptionCompat desc = new MediaDescriptionCompat.Builder()
+                        .setMediaId(LINE_ID)
+                        .setTitle("Muse voice line")
+                        .setSubtitle("Play = mic live - Pause = mute - Stop = hang up")
+                        .build();
+                items.add(new MediaBrowserCompat.MediaItem(desc, MediaBrowserCompat.MediaItem.FLAG_PLAYABLE));
+            }
+            result.sendResult(items);
+        } catch (Throwable t) {
+            CrashLog.record(this, "onLoadChildren", t);
+            try { result.sendResult(new ArrayList<MediaBrowserCompat.MediaItem>()); }
+            catch (Throwable ignored) {}
         }
-        result.sendResult(items);
     }
 
     // ---- transport -> SessionControl ----
@@ -183,33 +203,81 @@ public class DriveMediaService extends MediaBrowserServiceCompat {
 
     // ---- state reflection (called by SessionControl) ----
 
+    // v2.3.1: every reflect* entry point is catch-Throwable guarded
+    // and every MediaPlayer call goes through a state-safe helper.
+    // Pre-2.3.1 these ran unguarded: MediaPlayer throws
+    // IllegalStateException when a call lands in the wrong state
+    // (start/pause/stop/isPlaying after release, stop before
+    // prepare, a focus-change pause racing a Stop, ...), and the
+    // callers are Android Auto transport callbacks, the
+    // accessibility service, and broadcast receivers — so one bad
+    // state killed the whole process, repeatedly, which is exactly
+    // Samsung Device Care's "crashing frequently" signature.
+
+    private boolean playerPlaying() {
+        try { return player != null && player.isPlaying(); }
+        catch (Throwable t) { CrashLog.record(this, "player.isPlaying", t); return false; }
+    }
+
+    private void playerStart() {
+        try { if (player != null && !player.isPlaying()) player.start(); }
+        catch (Throwable t) {
+            CrashLog.record(this, "player.start", t);
+            recreatePlayer();
+            try { if (player != null) player.start(); } catch (Throwable ignored) {}
+        }
+    }
+
+    private void playerPause() {
+        try { if (player != null && player.isPlaying()) player.pause(); }
+        catch (Throwable t) { CrashLog.record(this, "player.pause", t); }
+    }
+
+    private void recreatePlayer() {
+        try { if (player != null) player.release(); } catch (Throwable ignored) {}
+        player = newPlayer();
+    }
+
     public void reflectPlaying() {
-        requestFocus();
-        if (player != null && !player.isPlaying()) player.start();
-        updateState(PlaybackStateCompat.STATE_PLAYING);
-        postNotification(true);
+        try {
+            requestFocus();
+            playerStart();
+            updateState(PlaybackStateCompat.STATE_PLAYING);
+            postNotification(true);
+        } catch (Throwable t) { CrashLog.record(this, "reflectPlaying", t); }
     }
 
     public void reflectPaused() {
-        if (player != null && player.isPlaying()) player.pause();
-        updateState(PlaybackStateCompat.STATE_PAUSED);
-        postNotification(false);
+        try {
+            playerPause();
+            updateState(PlaybackStateCompat.STATE_PAUSED);
+            postNotification(false);
+        } catch (Throwable t) { CrashLog.record(this, "reflectPaused", t); }
     }
 
     public void reflectStopped() {
-        if (player != null && player.isPlaying()) player.stop();
-        updateState(PlaybackStateCompat.STATE_STOPPED);
-        NotificationManager nm = (NotificationManager) getSystemService(Context.NOTIFICATION_SERVICE);
-        if (nm != null) nm.cancel(NOTIF_ID);
-        abandonFocus();
-        if (player != null) {
-            player.release();
-            player = newPlayer();
-        }
+        try {
+            // Never stop() blind: after a pause/focus-loss the player
+            // may not be in a stoppable state. Pause + recreate is
+            // state-safe in every state the player can be in.
+            playerPause();
+            updateState(PlaybackStateCompat.STATE_STOPPED);
+            try {
+                NotificationManager nm = (NotificationManager) getSystemService(Context.NOTIFICATION_SERVICE);
+                if (nm != null) nm.cancel(NOTIF_ID);
+            } catch (Throwable ignored) {}
+            abandonFocus();
+            recreatePlayer();
+        } catch (Throwable t) { CrashLog.record(this, "reflectStopped", t); }
     }
 
     private void updateState(int state) {
         if (session == null) return; // inert after failed init (v2.2.1)
+        try { updateStateInner(state); }
+        catch (Throwable t) { CrashLog.record(this, "updateState", t); }
+    }
+
+    private void updateStateInner(int state) {
         PlaybackStateCompat.Builder b = new PlaybackStateCompat.Builder()
                 .setActions(PlaybackStateCompat.ACTION_PLAY | PlaybackStateCompat.ACTION_PAUSE
                         | PlaybackStateCompat.ACTION_PLAY_PAUSE | PlaybackStateCompat.ACTION_STOP)
@@ -226,25 +294,28 @@ public class DriveMediaService extends MediaBrowserServiceCompat {
     // ---- audio focus (gentle: never fight the Muse session) ----
 
     private void requestFocus() {
-        if (audioManager == null) return;
-        focusRequest = new AudioFocusRequest.Builder(AudioManager.AUDIOFOCUS_GAIN)
-                .setOnAudioFocusChangeListener(new AudioManager.OnAudioFocusChangeListener() {
-                    @Override
-                    public void onAudioFocusChange(int focusChange) {
-                        if (focusChange == AudioManager.AUDIOFOCUS_LOSS && player != null && player.isPlaying()) {
-                            player.pause();
+        try {
+            if (audioManager == null) return;
+            if (focusRequest != null) return; // already held; don't stack requests
+            focusRequest = new AudioFocusRequest.Builder(AudioManager.AUDIOFOCUS_GAIN)
+                    .setOnAudioFocusChangeListener(new AudioManager.OnAudioFocusChangeListener() {
+                        @Override
+                        public void onAudioFocusChange(int focusChange) {
+                            if (focusChange == AudioManager.AUDIOFOCUS_LOSS) playerPause();
                         }
-                    }
-                })
-                .build();
-        audioManager.requestAudioFocus(focusRequest);
+                    })
+                    .build();
+            audioManager.requestAudioFocus(focusRequest);
+        } catch (Throwable t) { CrashLog.record(this, "requestFocus", t); }
     }
 
     private void abandonFocus() {
-        if (audioManager != null && focusRequest != null) {
-            audioManager.abandonAudioFocusRequest(focusRequest);
-            focusRequest = null;
-        }
+        try {
+            if (audioManager != null && focusRequest != null) {
+                audioManager.abandonAudioFocusRequest(focusRequest);
+                focusRequest = null;
+            }
+        } catch (Throwable t) { CrashLog.record(this, "abandonFocus", t); }
     }
 
     // ---- phone-side notification (same controls, off-car) ----
@@ -266,15 +337,29 @@ public class DriveMediaService extends MediaBrowserServiceCompat {
 
     private void postNotification(boolean live) {
         if (session == null) return; // inert after failed init (v2.2.1)
+        try { postNotificationInner(live); }
+        catch (Throwable t) { CrashLog.record(this, "postNotification", t); }
+    }
+
+    private void postNotificationInner(boolean live) {
         // Notification.MediaStyle needs the framework token; the compat
         // token wraps it (API 21+ getToken() returns the framework token).
-        MediaSession.Token fwToken = (MediaSession.Token) session.getSessionToken().getToken();
+        // v2.3.1: the cast is no longer blind — a null / non-framework
+        // token degrades to a notification without MediaStyle instead
+        // of throwing ClassCastException/NullPointerException.
+        MediaSession.Token fwToken = null;
+        try {
+            Object tok = session.getSessionToken().getToken();
+            if (tok instanceof MediaSession.Token) fwToken = (MediaSession.Token) tok;
+        } catch (Throwable ignored) {}
         Notification.Builder nb = new Notification.Builder(this, CHANNEL_ID)
                 .setSmallIcon(android.R.drawable.ic_btn_speak_now)
                 .setContentTitle("Muse for Android Auto")
-                .setContentText(live ? "Mic live" : "Muted")
-                .setStyle(new Notification.MediaStyle().setMediaSession(fwToken))
-                .addAction(android.R.drawable.ic_btn_speak_now, "Talk",
+                .setContentText(live ? "Mic live" : "Muted");
+        if (fwToken != null) {
+            nb.setStyle(new Notification.MediaStyle().setMediaSession(fwToken));
+        }
+        nb.addAction(android.R.drawable.ic_btn_speak_now, "Talk",
                         actionIntent(DriveActions.ACTION_TALK, 1))
                 .addAction(android.R.drawable.ic_lock_silent_mode, "Mute",
                         actionIntent(DriveActions.ACTION_MUTE, 2))
@@ -288,8 +373,10 @@ public class DriveMediaService extends MediaBrowserServiceCompat {
     @Override
     public void onDestroy() {
         if (active == this) active = null;
-        if (player != null) { player.release(); player = null; }
-        if (session != null) { session.release(); session = null; }
+        try { if (player != null) player.release(); } catch (Throwable ignored) {}
+        player = null;
+        try { if (session != null) session.release(); } catch (Throwable ignored) {}
+        session = null;
         super.onDestroy();
     }
 }

@@ -8,6 +8,7 @@ import android.provider.Settings;
 import android.view.View;
 import android.widget.Button;
 import android.widget.LinearLayout;
+import android.widget.ScrollView;
 import android.widget.TextView;
 
 /** Phone-side face of Muse Drive v2: explains the setup, shows
@@ -17,10 +18,12 @@ import android.widget.TextView;
 public class MainActivity extends Activity {
 
     private TextView status;
+    private TextView crashView;
 
     @Override
     protected void onCreate(Bundle savedInstanceState) {
         super.onCreate(savedInstanceState);
+        CrashLog.install(this);
 
         LinearLayout root = new LinearLayout(this);
         root.setOrientation(LinearLayout.VERTICAL);
@@ -73,7 +76,20 @@ public class MainActivity extends Activity {
             @Override public void onClick(View v) { SessionControl.end(MainActivity.this); refreshStatus(); }
         }));
 
-        setContentView(root);
+        // v2.3.1 diagnostics: if the app crashed / a guarded path
+        // failed since last install, the trace is shown here so it
+        // can be screenshotted back to Muse (no logcat access from
+        // Muse's side — this panel IS the crash report).
+        crashView = new TextView(this);
+        crashView.setTextSize(11);
+        root.addView(crashView);
+        root.addView(button("Clear crash log", new View.OnClickListener() {
+            @Override public void onClick(View v) { CrashLog.clear(MainActivity.this); refreshStatus(); }
+        }));
+
+        ScrollView scroll = new ScrollView(this);
+        scroll.addView(root);
+        setContentView(scroll);
         // v2.2.1: start the media service AFTER the first frame, off
         // onCreate's critical path. A synchronous startService here
         // runs DriveMediaService.onCreate inline; if that init ever
@@ -98,10 +114,21 @@ public class MainActivity extends Activity {
 
     private void refreshStatus() {
         if (status == null) return;
-        boolean a11y = DriveAccessibilityService.instance != null || isA11yEnabled();
-        status.setText("\nStatus: accessibility " + (a11y ? "ON" : "OFF")
-                + " - mic " + (Mic.isMuted(this) ? "MUTED" : "live")
-                + " - session " + (SessionState.armed ? "armed" : "not armed"));
+        try {
+            boolean a11y = DriveAccessibilityService.instance != null || isA11yEnabled();
+            status.setText("\nStatus: accessibility " + (a11y ? "ON" : "OFF")
+                    + " - mic " + (Mic.isMuted(this) ? "MUTED" : "live")
+                    + " - session " + (SessionState.armed ? "armed" : "not armed")
+                    + (DriveMediaService.initFailed ? " - media service INIT FAILED" : ""));
+        } catch (Throwable t) {
+            CrashLog.record(this, "refreshStatus", t);
+        }
+        if (crashView != null) {
+            String crash = CrashLog.read(this);
+            crashView.setText(crash.length() == 0
+                    ? "\nCrash log: empty (no crash recorded by v2.3.1+)."
+                    : "\nLast recorded crash / failure — screenshot this for Muse:\n\n" + crash);
+        }
     }
 
     private boolean isA11yEnabled() {
