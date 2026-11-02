@@ -27,12 +27,24 @@ import java.util.List;
  *  calling/messaging car categories are closed/testing-only).
  *
  *  What Auto shows: Muse for Android Auto as a media source with ONE playable
- *  item — a silent loop. The transport controls are the point:
+ *  item — "Muse voice mode", a silent loop. The controls are the point
+ *  (v2.5.1, verified against this code after Jonathan's in-car test):
  *
- *    Play   = mic live   (silent loop + system mic unmute)
- *    Pause  = MUTE       (the big obvious Auto button is the mute)
- *    Stop   = hang up    (accessibility end-call tap)
- *    Custom actions: Talk to Muse (ASSIST intent), Mute, Hang up.
+ *    Microphone button (custom action "Talk to Muse", ic_btn_speak_now)
+ *             = START a voice session: arms the session, fires
+ *               ACTION_ASSIST into Muse, and the accessibility
+ *               service taps Muse's own voice button. This is the
+ *               button you press to talk to Muse.
+ *    Play     = mic live   (system mic unmute; silent loop playing)
+ *    Pause    = mic muted  (system mic mute; the session stays up)
+ *    Mute button (custom action "Mute", ic_lock_silent_mode)
+ *             = the same mic mute as Pause, in one tap — it mutes
+ *               YOUR microphone, not Muse's speaker.
+ *    Stop / custom action "Hang up"
+ *             = end the session (accessibility end-call tap).
+ *
+ *  Play/Pause never start a session: they only mute/unmute the mic
+ *  (onPlay also fires when the "Muse voice mode" item is tapped).
  *
  *  v2: NO MacroDroid anywhere in the path. All session control is
  *  in-app (SessionControl / Mic / DriveAccessibilityService) —
@@ -68,7 +80,7 @@ public class DriveMediaService extends MediaBrowserServiceCompat {
 
     private static final String TAG = "MuseDrive";
     private static final String ROOT_ID = "muse_drive_root";
-    private static final String LINE_ID = "muse_voice_line";
+    private static final String LINE_ID = "muse_voice_mode";
     private static final String CHANNEL_ID = "muse_drive";
     private static final int NOTIF_ID = 42;
 
@@ -96,9 +108,9 @@ public class DriveMediaService extends MediaBrowserServiceCompat {
             session.setFlags(MediaSessionCompat.FLAG_HANDLES_MEDIA_BUTTONS
                     | MediaSessionCompat.FLAG_HANDLES_TRANSPORT_CONTROLS);
             session.setMetadata(new MediaMetadataCompat.Builder()
-                    .putString(MediaMetadataCompat.METADATA_KEY_TITLE, "Muse voice line")
+                    .putString(MediaMetadataCompat.METADATA_KEY_TITLE, "Muse voice mode")
                     .putString(MediaMetadataCompat.METADATA_KEY_ARTIST, "Muse for Android Auto")
-                    .putString(MediaMetadataCompat.METADATA_KEY_ALBUM, "Play = mic live, Pause = mute, Stop = hang up")
+                    .putString(MediaMetadataCompat.METADATA_KEY_ALBUM, "Microphone button starts a voice session · Play/Pause = mic live/muted · Stop = hang up")
                     .build());
             setSessionToken(session.getSessionToken());
             updateState(PlaybackStateCompat.STATE_NONE);
@@ -164,8 +176,8 @@ public class DriveMediaService extends MediaBrowserServiceCompat {
             if (ROOT_ID.equals(parentId)) {
                 MediaDescriptionCompat desc = new MediaDescriptionCompat.Builder()
                         .setMediaId(LINE_ID)
-                        .setTitle("Muse voice line")
-                        .setSubtitle("Play = mic live - Pause = mute - Stop = hang up")
+                        .setTitle("Muse voice mode")
+                        .setSubtitle("Microphone button = talk to Muse · Play/Pause = mic live/muted")
                         .build();
                 items.add(new MediaBrowserCompat.MediaItem(desc, MediaBrowserCompat.MediaItem.FLAG_PLAYABLE));
             }

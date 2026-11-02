@@ -1,4 +1,4 @@
-# Muse for Android Auto — Android Auto media app (v2.4.1, built 2026-11-01)
+# Muse for Android Auto — Android Auto media app (v2.5.1, built 2026-11-01)
 
 > **Renamed in v2.2.2:** the app's display name is now **Muse for
 > Android Auto** (Jonathan's order, 2026-10-31). It was formerly
@@ -31,20 +31,27 @@ session's eyes-free controls.
   v2.2.0 section below),
   `automotive_app_desc.xml` declaring `<uses name="media"/>`.
 - In Auto it appears as a media source with one playable item,
-  "Muse voice line" — a silent loop (res/raw/silence.wav). The
-  transport controls are the product:
-  - **Play = mic live** (starts loop + UNMUTE broadcast)
-  - **Pause = mute** (the big Auto play/pause button IS the mute)
-  - **Stop = hang up** (END broadcast)
-  - Custom player actions: **Talk to Muse** (fires the REA-verified
-    ungated ACTION_ASSIST intent into com.facebook.aura), **Mute**,
-    **Hang up**.
-- Mute/unmute/end are explicit broadcasts addressed to MacroDroid
-  (`com.jonathancruzate.metamuseandroidauto.MUTE/.UNMUTE/.END`); the driving
-  macros carry matching IntentReceivedTriggers and do the real work
-  (system mic mute via MuteMicrophoneAction; hang-up macro). No app
-  can reach into Meta Muse's own session — this is the control
-  surface, not the call.
+  "Muse voice mode" — a silent loop (res/raw/silence.wav). The
+  controls are the product (verified against the current code,
+  v2.5.1):
+  - **Microphone button ("Talk to Muse") = start talking.** It
+    arms the session, fires the REA-verified ungated ACTION_ASSIST
+    intent into com.facebook.aura, and the app's accessibility
+    service taps Muse's own voice button — a voice session
+    starts. This is the button you press to talk to Muse.
+  - **Play / Pause = your microphone only**, once a session is
+    running: **Play = mic live** (system mic unmute), **Pause =
+    mic muted** (system mic mute; the session stays up). Play and
+    Pause never start or end a session.
+  - **Mute button = the same mic mute as Pause**, in one tap. It
+    mutes YOUR microphone — not Muse's speaker.
+  - **Stop / "Hang up" = end the voice session** (the
+    accessibility service taps Muse's end-call button).
+- Since v2, mute/unmute/end all run in-app
+  (`AudioManager.setMicrophoneMute()` and the app's own
+  accessibility service); the v1 MacroDroid broadcast path below
+  is history. No app can reach into Meta Muse's own session —
+  this is the control surface, not the call.
 - Phone-side: a media notification with Talk/Mute/Hang up actions,
   and MainActivity as an off-car test panel firing the same actions.
 
@@ -53,7 +60,7 @@ session's eyes-free controls.
 `./build.sh` — javac/d8/aapt2 via the meta-muse-widget SDK
 (read-only toolchain use; no emulator touched), own keystore in
 `keystore/` (password file alongside, 0600). Output:
-`Muse-Android-Auto-2.4.1.apk`, signed, apksigner-verified; manifest dump
+`Muse-Android-Auto-2.5.1.apk`, signed, apksigner-verified; manifest dump
 confirms the `com.google.android.gms.car.application` meta-data,
 the exported MediaBrowserService, and all four action strings in
 the DEX.
@@ -64,7 +71,7 @@ the DEX.
 2. Android Auto → Settings → Developer settings → **Unknown
    sources** ON (required for any sideloaded Auto app to appear).
 3. In the car: select Muse for Android Auto as the media source, open the
-   Muse voice line. Checks: (a) it appears at all (framework
+   Muse voice mode. Checks: (a) it appears at all (framework
    MediaBrowserService acceptance is the big unknown — if Auto
    ignores it, v2 swaps in androidx.media's
    MediaBrowserServiceCompat); (b) Talk opens Muse on the phone;
@@ -595,3 +602,48 @@ versionName 2.5.0, label "Muse for Android Auto"; the shipped
 APK's DEX contains zero old-package strings.
 APK: `Muse-Android-Auto-2.5.0.apk`, 738,775 B, SHA-256
 `9738c88cb4ebcfcf4990f1f46c905c8907ba86be540862db266adaa37ff672ea`.
+
+## v2.5.1 — the three car buttons, explained; "Muse voice mode" (2026-11-01, versionCode 12)
+
+Jonathan's in-car test (2026-11-01 evening): the app works, but
+the instructions didn't match the car. The Auto player shows a
+microphone button, Play/Pause, and a mute button, and the old
+text led with Play/Pause — while the button that actually starts
+a conversation is the microphone. Verified against the code
+(`DriveMediaService` PlaybackState + `SessionCallback`,
+`SessionControl`):
+
+- **Microphone button** — the custom action "Talk to Muse"
+  (`ic_btn_speak_now` icon): arms the session, fires
+  ACTION_ASSIST into Muse, and the accessibility service taps
+  Muse's own voice button. **This starts the voice session.**
+- **Play / Pause** — mic only: Play = `setMicrophoneMute(false)`
+  (mic live), Pause = `setMicrophoneMute(true)` (mic muted).
+  Neither starts nor ends a session; Play also fires when the
+  media item itself is tapped (`onPlayFromMediaId`).
+- **Mute button** — the custom action "Mute"
+  (`ic_lock_silent_mode` icon): the same mic mute as Pause in
+  one tap. It mutes the DRIVER's microphone, not Muse's
+  speaker/output.
+- **Stop / "Hang up"** custom action = end the session
+  (accessibility end-call tap, fallback Back → Home).
+
+Changes in this release (no behavior changes):
+
+- The media item is renamed **"Muse voice line" → "Muse voice
+  mode"** everywhere: browse item title/subtitle, session
+  metadata, the internal media id, the phone app's instructions,
+  and this README.
+- The phone app's instructions and the item subtitle/metadata
+  now describe all the car controls accurately, microphone
+  first.
+
+Verified: builds clean with both v2.3.2 guards (empty-library
+fetch guard + dex completeness guard) passing; `apksigner` OK,
+same cert (`314b8616…`), upgrades in place over v2.5.0;
+`aapt2 dump badging` shows package
+`com.jonathancruzate.metamuseandroidauto`, versionCode 12,
+versionName 2.5.1; the shipped APK's DEX contains "Muse voice
+mode" and zero occurrences of "Muse voice line".
+APK: `Muse-Android-Auto-2.5.1.apk`, 738,775 B, SHA-256
+`87fabebe4b6c93ac5d7b4d2da287ac0f2d272b2990d18dc00aafe687bcbe2c82`.

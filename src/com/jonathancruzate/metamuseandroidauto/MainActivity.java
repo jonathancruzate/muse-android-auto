@@ -37,8 +37,13 @@ public class MainActivity extends Activity {
 
         TextView body = new TextView(this);
         body.setText("\nIn the car: open Android Auto, pick Muse for Android Auto as the media source, "
-                + "open the Muse voice line.\n"
-                + "Play = mic live - Pause = mute - Stop = hang up.\n\n"
+                + "open Muse voice mode. The car shows four controls:\n"
+                + "- Microphone button (Talk to Muse) = START talking: opens Muse and starts "
+                + "a voice session. This is the button that starts a conversation.\n"
+                + "- Play / Pause = your microphone only, once a session is running: "
+                + "Play = mic live, Pause = mic muted. It does not start or end the session.\n"
+                + "- Mute button = the same mute as Pause, in one tap.\n"
+                + "- Stop / Hang up = end the voice session.\n\n"
                 + "Eyes-free on the phone, once a session is armed (Talk or Play):\n"
                 + "hold Volume DOWN = mute - hold Volume UP = unmute - "
                 + "hold BOTH volume buttons = hang up.\n\n"
