@@ -690,13 +690,57 @@ documentation and "Muse voice mode" rename are unchanged):
   "Microphone button = start Muse voice mode, press again to
   hang up".
 
+Screen-off / locked operation (folded into this same release —
+Jonathan's second report from the same test, 2026-11-01
+~19:47 EST, and his layer diagnosis was right):
+
+- **Confirmed layer**: the Android Auto media/custom buttons DO
+  fire with the screen off — media-session callbacks reach this
+  app regardless. The failure is one layer down: Talk fires
+  ACTION_ASSIST, then the accessibility service hunts Muse's
+  voice button in the active window; with the keyguard up,
+  Muse's window is behind the lock screen, where Android
+  blocks accessibility interaction with app windows. The hunt
+  sees the keyguard, misses 8 times, and gives up silently.
+  The end-call hunt has the identical problem in reverse.
+- **Fix**: `SessionControl.talk()` / `end()` now check
+  `screenReady()` (screen interactive + no keyguard) first.
+  When the screen is off or locked they take a short wake lock
+  and launch the new `WakeActivity` — declared
+  `showWhenLocked` + `turnScreenOn`, translucent, not exported —
+  which wakes the phone, shows over the lock screen, and calls
+  `KeyguardManager.requestDismissKeyguard`. Only after
+  dismissal does it run the start (`SessionControl.doTalk`,
+  the pre-existing talk body) or the end-call hunt
+  (`SessionControl.endCallNow`). If the driver cancels the
+  unlock, a start is aborted (nothing armed — the toggle state
+  stays truthful) and the car UI resets.
+- **The limit, stated plainly**: with a SECURE lock screen
+  (PIN / pattern / password / biometric), the mic press wakes
+  the phone and Android shows its own unlock prompt; the
+  session starts (or the hang-up tap lands) only after the
+  driver authenticates. No app can dismiss a secure keyguard
+  silently, and this app does not claim to — full screen-off
+  operation is NOT promised on a securely locked phone.
+- **The hands-free workaround**: Android's Extend Unlock
+  (Smart Lock) with the car's Bluetooth as a trusted device
+  keeps the phone unlocked while driving; with the keyguard
+  already open, dismissal succeeds immediately and the whole
+  flow — start and hang-up — runs hands-free. This is also
+  step 3 of the phone app's setup text.
+
 Verified: builds clean with both v2.3.2 guards (empty-library
 fetch guard + dex completeness guard) passing; `apksigner` OK,
 same cert (`314b8616…`), upgrades in place over v2.5.1;
 `aapt2 dump badging` shows package
 `com.jonathancruzate.metamuseandroidauto`, versionCode 13,
 versionName 2.5.2; the shipped APK's DEX contains "press again
-to hang up", `toggleTalk`, and the `muse_drive_session` prefs
-name, and zero occurrences of "Muse voice line".
+to hang up", `toggleTalk`, the `muse_drive_session` prefs
+name, `WakeActivity` / `requestDismissKeyguard`, and zero
+occurrences of "Muse voice line". The wake/lock behavior is
+verified by end-to-end code-path inspection (callback ->
+SessionControl -> WakeActivity -> keyguard dismissal ->
+hunt); on-device screen-off proof is Jonathan's next in-car
+test.
 APK: `Muse-Android-Auto-2.5.2.apk`, 738,775 B, SHA-256
-`b9d630941e21a38efb1986dc6f227436219a86e096fe998088dbee8e170dc548`.
+`eece215cadd2b90d90e870ad9c7e62efdfbd86fcff873bff6288bb821a75197f`.

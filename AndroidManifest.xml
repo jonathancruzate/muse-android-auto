@@ -9,6 +9,9 @@
     </queries>
 
     <uses-permission android:name="android.permission.VIBRATE" />
+    <!-- v2.5.2: hold the screen on briefly during the wake
+         trampoline (screen-off Talk / hang-up). -->
+    <uses-permission android:name="android.permission.WAKE_LOCK" />
 
     <application
         android:label="Muse for Android Auto"
@@ -29,6 +32,20 @@
                 <category android:name="android.intent.category.LAUNCHER" />
             </intent-filter>
         </activity>
+
+        <!-- v2.5.2: wake trampoline — wakes the phone and shows
+             over the lock screen so the accessibility voice /
+             end-call taps can land when Talk or Hang up is pressed
+             with the screen off. Not exported; launched only by
+             SessionControl via explicit intent. -->
+        <activity
+            android:name=".WakeActivity"
+            android:exported="false"
+            android:excludeFromRecents="true"
+            android:launchMode="singleInstance"
+            android:showWhenLocked="true"
+            android:turnScreenOn="true"
+            android:theme="@android:style/Theme.Translucent.NoTitleBar" />
 
         <service
             android:name=".DriveMediaService"

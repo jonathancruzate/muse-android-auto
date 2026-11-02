@@ -51,7 +51,12 @@ public class MainActivity extends Activity {
                 + "hold BOTH volume buttons = hang up.\n\n"
                 + "One-time setup:\n"
                 + "1. Enable the Muse for Android Auto accessibility service (hang-up tap + volume keys).\n"
-                + "2. Android Auto > Developer settings > Unknown sources ON.\n");
+                + "2. Android Auto > Developer settings > Unknown sources ON.\n"
+                + "3. Screen off is OK: Talk wakes the phone first. If your lock screen is secure "
+                + "(fingerprint / PIN), Android shows its unlock prompt and the session starts "
+                + "right after you unlock. No app can skip a secure lock; for fully hands-free "
+                + "starts, set Extend Unlock (Smart Lock) to keep the phone unlocked on your "
+                + "car's Bluetooth.\n");
         body.setTextSize(15);
         root.addView(body);
 

@@ -39,7 +39,12 @@ import java.util.List;
  *               Press it to talk to Muse; press it again to
  *               hang up. The toggle state (SessionState.armed) is
  *               persisted on the phone, so it survives this
- *               service being restarted mid-session.
+ *               service being restarted mid-session. Works with
+ *               the phone screen off too: SessionControl wakes
+ *               the phone and unlocks the keyguard path first
+ *               (WakeActivity) — with a secure lock screen the
+ *               driver still has to authenticate at Android's
+ *               own prompt; no app can skip that.
  *    Play     = mic live   (system mic unmute; silent loop playing)
  *    Pause    = mic muted  (system mic mute; the session stays up)
  *    Mute button (custom action "Mute", ic_lock_silent_mode)
