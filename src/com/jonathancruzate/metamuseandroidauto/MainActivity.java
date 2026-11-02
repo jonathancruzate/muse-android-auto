@@ -24,6 +24,7 @@ public class MainActivity extends Activity {
     protected void onCreate(Bundle savedInstanceState) {
         super.onCreate(savedInstanceState);
         CrashLog.install(this);
+        SessionState.load(this); // v2.5.2: persisted mic-toggle state
 
         LinearLayout root = new LinearLayout(this);
         root.setOrientation(LinearLayout.VERTICAL);
@@ -38,8 +39,9 @@ public class MainActivity extends Activity {
         TextView body = new TextView(this);
         body.setText("\nIn the car: open Android Auto, pick Muse for Android Auto as the media source, "
                 + "open Muse voice mode. The car shows four controls:\n"
-                + "- Microphone button (Talk to Muse) = START talking: opens Muse and starts "
-                + "a voice session. This is the button that starts a conversation.\n"
+                + "- Microphone button (Talk to Muse) = the voice toggle: press once to start "
+                + "Muse voice mode (opens Muse and starts a voice session); press it again "
+                + "to hang up and end the session.\n"
                 + "- Play / Pause = your microphone only, once a session is running: "
                 + "Play = mic live, Pause = mic muted. It does not start or end the session.\n"
                 + "- Mute button = the same mute as Pause, in one tap.\n"
@@ -68,8 +70,8 @@ public class MainActivity extends Activity {
         test.setTextSize(15);
         root.addView(test);
 
-        root.addView(button("Talk to Muse", new View.OnClickListener() {
-            @Override public void onClick(View v) { SessionControl.talk(MainActivity.this); refreshStatus(); }
+        root.addView(button("Talk to Muse / hang up (mic toggle)", new View.OnClickListener() {
+            @Override public void onClick(View v) { SessionControl.toggleTalk(MainActivity.this); refreshStatus(); }
         }));
         root.addView(button("Unmute (mic live)", new View.OnClickListener() {
             @Override public void onClick(View v) { SessionControl.unmute(MainActivity.this); refreshStatus(); }

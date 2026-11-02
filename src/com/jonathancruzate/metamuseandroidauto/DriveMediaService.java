@@ -28,13 +28,18 @@ import java.util.List;
  *
  *  What Auto shows: Muse for Android Auto as a media source with ONE playable
  *  item — "Muse voice mode", a silent loop. The controls are the point
- *  (v2.5.1, verified against this code after Jonathan's in-car test):
+ *  (v2.5.2, verified against this code after Jonathan's in-car tests):
  *
  *    Microphone button (custom action "Talk to Muse", ic_btn_speak_now)
- *             = START a voice session: arms the session, fires
- *               ACTION_ASSIST into Muse, and the accessibility
- *               service taps Muse's own voice button. This is the
- *               button you press to talk to Muse.
+ *             = TOGGLE Muse voice mode (v2.5.2): no session live
+ *               -> START one (arms the session, fires ACTION_ASSIST
+ *               into Muse, and the accessibility service taps
+ *               Muse's own voice button); session live -> HANG UP
+ *               (the same accessibility end-call tap as Stop).
+ *               Press it to talk to Muse; press it again to
+ *               hang up. The toggle state (SessionState.armed) is
+ *               persisted on the phone, so it survives this
+ *               service being restarted mid-session.
  *    Play     = mic live   (system mic unmute; silent loop playing)
  *    Pause    = mic muted  (system mic mute; the session stays up)
  *    Mute button (custom action "Mute", ic_lock_silent_mode)
@@ -101,6 +106,10 @@ public class DriveMediaService extends MediaBrowserServiceCompat {
         CrashLog.install(this);
         active = this;
         try {
+            // v2.5.2: restore the persisted voice-session toggle
+            // state before anything can act on it — this service
+            // may be a fresh process for a session started earlier.
+            SessionState.load(this);
             audioManager = (AudioManager) getSystemService(Context.AUDIO_SERVICE);
 
             session = new MediaSessionCompat(this, "MuseDrive");
@@ -110,7 +119,7 @@ public class DriveMediaService extends MediaBrowserServiceCompat {
             session.setMetadata(new MediaMetadataCompat.Builder()
                     .putString(MediaMetadataCompat.METADATA_KEY_TITLE, "Muse voice mode")
                     .putString(MediaMetadataCompat.METADATA_KEY_ARTIST, "Muse for Android Auto")
-                    .putString(MediaMetadataCompat.METADATA_KEY_ALBUM, "Microphone button starts a voice session · Play/Pause = mic live/muted · Stop = hang up")
+                    .putString(MediaMetadataCompat.METADATA_KEY_ALBUM, "Microphone button = start Muse voice mode, press again to hang up · Play/Pause = mic live/muted")
                     .build());
             setSessionToken(session.getSessionToken());
             updateState(PlaybackStateCompat.STATE_NONE);
@@ -177,7 +186,7 @@ public class DriveMediaService extends MediaBrowserServiceCompat {
                 MediaDescriptionCompat desc = new MediaDescriptionCompat.Builder()
                         .setMediaId(LINE_ID)
                         .setTitle("Muse voice mode")
-                        .setSubtitle("Microphone button = talk to Muse · Play/Pause = mic live/muted")
+                        .setSubtitle("Microphone button = start Muse voice mode, press again to hang up · Play/Pause = mic live/muted")
                         .build();
                 items.add(new MediaBrowserCompat.MediaItem(desc, MediaBrowserCompat.MediaItem.FLAG_PLAYABLE));
             }
@@ -202,7 +211,9 @@ public class DriveMediaService extends MediaBrowserServiceCompat {
         @Override
         public void onCustomAction(String action, Bundle extras) {
             if (DriveActions.ACTION_TALK.equals(action)) {
-                SessionControl.talk(DriveMediaService.this);
+                // v2.5.2: the microphone button toggles — start
+                // when no session is live, hang up when one is.
+                SessionControl.toggleTalk(DriveMediaService.this);
             } else if (DriveActions.ACTION_MUTE.equals(action)) {
                 SessionControl.mute(DriveMediaService.this);
             } else if (DriveActions.ACTION_UNMUTE.equals(action)) {

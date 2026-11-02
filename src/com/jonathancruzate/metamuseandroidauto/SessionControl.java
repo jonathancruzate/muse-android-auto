@@ -12,6 +12,12 @@ import android.widget.Toast;
  *  session — with NO MacroDroid in the path.
  *
  *    talk()   -> ACTION_ASSIST into Muse (ungated, REA-verified)
+ *    toggleTalk() -> the microphone button (v2.5.2): no session
+ *                live -> talk(); session live -> end(). State is
+ *                SessionState.armed, persisted on the phone, so
+ *                the toggle survives media-service restarts —
+ *                the same toggle the Muse Voice Mode Shortcut
+ *                app's button performs.
  *    mute()   -> AudioManager.setMicrophoneMute(true)
  *    unmute() -> AudioManager.setMicrophoneMute(false)
  *    end()    -> accessibility service taps Muse's end-call
@@ -32,12 +38,34 @@ public final class SessionControl {
     public static void talk(Context ctx) {
         try {
             CrashLog.install(ctx);
-            SessionState.armed = true;
+            SessionState.setArmed(ctx, true);
             SessionState.awaitingVoiceTap = true;
             DriveActions.startClaudeAssist(ctx);
             DriveMediaService svc = DriveMediaService.active;
             if (svc != null) svc.reflectPlaying();
         } catch (Throwable t) { CrashLog.record(ctx, "SessionControl.talk", t); }
+    }
+
+    /** v2.5.2: the microphone button TOGGLES Muse voice mode
+     *  (Jonathan's order 2026-11-01, from his in-car test: the mic
+     *  button started a session but pressing it again did nothing,
+     *  so there was no way to hang up from Android Auto). No
+     *  session live -> start one (talk). Session live -> hang up
+     *  (end: the accessibility end-call hunt, Back -> Home
+     *  fallback — the exact path Stop / "Hang up" already used).
+     *  State is SessionState.armed, persisted on the phone, so
+     *  the decision stays correct even if the media service was
+     *  restarted since the session started. */
+    public static void toggleTalk(Context ctx) {
+        try {
+            CrashLog.install(ctx);
+            SessionState.ensureLoaded(ctx);
+            if (SessionState.armed) {
+                end(ctx);
+            } else {
+                talk(ctx);
+            }
+        } catch (Throwable t) { CrashLog.record(ctx, "SessionControl.toggleTalk", t); }
     }
 
     public static void mute(Context ctx) {
@@ -51,7 +79,7 @@ public final class SessionControl {
 
     public static void unmute(Context ctx) {
         try {
-            SessionState.armed = true;
+            SessionState.setArmed(ctx, true);
             Mic.set(ctx, false);
             buzz(ctx, 80);
             DriveMediaService svc = DriveMediaService.active;
@@ -78,7 +106,7 @@ public final class SessionControl {
                             Toast.LENGTH_LONG).show();
                 } catch (Throwable ignored) {}
             }
-            SessionState.armed = false;
+            SessionState.setArmed(ctx, false);
             SessionState.awaitingVoiceTap = false;
             DriveMediaService svc = DriveMediaService.active;
             if (svc != null) svc.reflectStopped();

@@ -51,6 +51,11 @@ public class DriveAccessibilityService extends AccessibilityService {
     protected void onServiceConnected() {
         instance = this;
         CrashLog.install(this);
+        // v2.5.2: restore the persisted session flag — volume-key
+        // interception and the mic toggle key off SessionState.armed,
+        // and this service may be the first component up in a fresh
+        // process for a session started earlier.
+        SessionState.load(this);
     }
 
     @Override

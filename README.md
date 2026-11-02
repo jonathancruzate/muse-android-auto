@@ -1,4 +1,4 @@
-# Muse for Android Auto — Android Auto media app (v2.5.1, built 2026-11-01)
+# Muse for Android Auto — Android Auto media app (v2.5.2, built 2026-11-01)
 
 > **Renamed in v2.2.2:** the app's display name is now **Muse for
 > Android Auto** (Jonathan's order, 2026-10-31). It was formerly
@@ -33,12 +33,16 @@ session's eyes-free controls.
 - In Auto it appears as a media source with one playable item,
   "Muse voice mode" — a silent loop (res/raw/silence.wav). The
   controls are the product (verified against the current code,
-  v2.5.1):
-  - **Microphone button ("Talk to Muse") = start talking.** It
+  v2.5.2):
+  - **Microphone button ("Talk to Muse") = the voice toggle.**
+    Press it with no session live and it starts Muse voice mode:
     arms the session, fires the REA-verified ungated ACTION_ASSIST
     intent into com.facebook.aura, and the app's accessibility
-    service taps Muse's own voice button — a voice session
-    starts. This is the button you press to talk to Muse.
+    service taps Muse's own voice button. Press it again while a
+    session is live and it hangs up — the same accessibility
+    end-call tap as Stop / "Hang up". The toggle state is
+    persisted on the phone (SharedPreferences), so it stays
+    correct across media-service restarts.
   - **Play / Pause = your microphone only**, once a session is
     running: **Play = mic live** (system mic unmute), **Pause =
     mic muted** (system mic mute; the session stays up). Play and
@@ -60,7 +64,7 @@ session's eyes-free controls.
 `./build.sh` — javac/d8/aapt2 via the meta-muse-widget SDK
 (read-only toolchain use; no emulator touched), own keystore in
 `keystore/` (password file alongside, 0600). Output:
-`Muse-Android-Auto-2.5.1.apk`, signed, apksigner-verified; manifest dump
+`Muse-Android-Auto-2.5.2.apk`, signed, apksigner-verified; manifest dump
 confirms the `com.google.android.gms.car.application` meta-data,
 the exported MediaBrowserService, and all four action strings in
 the DEX.
@@ -647,3 +651,52 @@ versionName 2.5.1; the shipped APK's DEX contains "Muse voice
 mode" and zero occurrences of "Muse voice line".
 APK: `Muse-Android-Auto-2.5.1.apk`, 738,775 B, SHA-256
 `87fabebe4b6c93ac5d7b4d2da287ac0f2d272b2990d18dc00aafe687bcbe2c82`.
+
+## v2.5.2 — the microphone button hangs up too (2026-11-01, versionCode 13)
+
+Jonathan's follow-up from the same in-car test: there was no way
+to hang up Muse voice mode from Android Auto. The microphone
+button started a session, but pressing it again did nothing —
+the only hang-up paths were the Stop / "Hang up" custom action
+and the phone-side volume-key gesture. His requirement: the mic
+button toggles, exactly like the Muse Voice Mode Shortcut app —
+press to start Muse voice mode, press again to hang up.
+
+Changes in this release (on top of v2.5.1, whose button
+documentation and "Muse voice mode" rename are unchanged):
+
+- **New `SessionControl.toggleTalk()`**: no session live ->
+  `talk()` (unchanged start path); session live -> `end()` —
+  the existing hang-up machinery, i.e. the accessibility
+  service's end-call hunt (view-id candidates incl.
+  `end_voice_button`, then text/description labels) with the
+  Back -> Home fallback. No new hang-up code was written; the
+  toggle routes into the path Stop / "Hang up" already used.
+- **Wired to every Talk surface**: the Android Auto custom
+  action "Talk to Muse" (`DriveMediaService.SessionCallback`),
+  the phone notification's Talk action (`DriveReceiver`), and
+  the MainActivity test-panel button (relabeled "Talk to Muse /
+  hang up (mic toggle)").
+- **Toggle state is persisted**: `SessionState.armed` is now
+  mirrored to SharedPreferences (`muse_drive_session`) on every
+  change (`setArmed`) and restored at startup by the media
+  service, the accessibility service, and MainActivity
+  (`load`). Before this, `armed` was a bare in-process volatile:
+  a media-service/process restart mid-session reset it to false,
+  and the next mic press would have re-started instead of
+  hanging up.
+- **Help text updated** to match: the phone app's instructions
+  and the car's item subtitle / session metadata now read
+  "Microphone button = start Muse voice mode, press again to
+  hang up".
+
+Verified: builds clean with both v2.3.2 guards (empty-library
+fetch guard + dex completeness guard) passing; `apksigner` OK,
+same cert (`314b8616…`), upgrades in place over v2.5.1;
+`aapt2 dump badging` shows package
+`com.jonathancruzate.metamuseandroidauto`, versionCode 13,
+versionName 2.5.2; the shipped APK's DEX contains "press again
+to hang up", `toggleTalk`, and the `muse_drive_session` prefs
+name, and zero occurrences of "Muse voice line".
+APK: `Muse-Android-Auto-2.5.2.apk`, 738,775 B, SHA-256
+`b9d630941e21a38efb1986dc6f227436219a86e096fe998088dbee8e170dc548`.

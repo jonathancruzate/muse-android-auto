@@ -17,7 +17,9 @@ public class DriveReceiver extends BroadcastReceiver {
         if (intent == null || intent.getAction() == null) return;
         String a = intent.getAction();
         if (DriveActions.ACTION_TALK.equals(a)) {
-            SessionControl.talk(context);
+            // v2.5.2: same toggle as the car's microphone button —
+            // start when no session is live, hang up when one is.
+            SessionControl.toggleTalk(context);
         } else if (DriveActions.ACTION_MUTE.equals(a)) {
             SessionControl.mute(context);
         } else if (DriveActions.ACTION_UNMUTE.equals(a)) {
