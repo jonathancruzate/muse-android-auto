@@ -1,4 +1,4 @@
-# Muse for Android Auto — Android Auto media app (v2.5.2, built 2026-11-01)
+# Muse for Android Auto — Android Auto media app (v2.5.3, built 2026-11-02)
 
 > **Renamed in v2.2.2:** the app's display name is now **Muse for
 > Android Auto** (Jonathan's order, 2026-10-31). It was formerly
@@ -31,11 +31,11 @@ session's eyes-free controls.
   v2.2.0 section below),
   `automotive_app_desc.xml` declaring `<uses name="media"/>`.
 - In Auto it appears as a media source with one playable item,
-  "Muse voice mode" — a silent loop (res/raw/silence.wav). The
+  "Muse Voice Mode" — a silent loop (res/raw/silence.wav). The
   controls are the product (verified against the current code,
   v2.5.2):
   - **Microphone button ("Talk to Muse") = the voice toggle.**
-    Press it with no session live and it starts Muse voice mode:
+    Press it with no session live and it starts Muse Voice Mode:
     arms the session, fires the REA-verified ungated ACTION_ASSIST
     intent into com.facebook.aura, and the app's accessibility
     service taps Muse's own voice button. Press it again while a
@@ -64,7 +64,7 @@ session's eyes-free controls.
 `./build.sh` — javac/d8/aapt2 via the meta-muse-widget SDK
 (read-only toolchain use; no emulator touched), own keystore in
 `keystore/` (password file alongside, 0600). Output:
-`Muse-Android-Auto-2.5.2.apk`, signed, apksigner-verified; manifest dump
+`Muse-Android-Auto-2.5.3.apk`, signed, apksigner-verified; manifest dump
 confirms the `com.google.android.gms.car.application` meta-data,
 the exported MediaBrowserService, and all four action strings in
 the DEX.
@@ -75,7 +75,7 @@ the DEX.
 2. Android Auto → Settings → Developer settings → **Unknown
    sources** ON (required for any sideloaded Auto app to appear).
 3. In the car: select Muse for Android Auto as the media source, open the
-   Muse voice mode. Checks: (a) it appears at all (framework
+   Muse Voice Mode. Checks: (a) it appears at all (framework
    MediaBrowserService acceptance is the big unknown — if Auto
    ignores it, v2 swaps in androidx.media's
    MediaBrowserServiceCompat); (b) Talk opens Muse on the phone;
@@ -85,6 +85,49 @@ the DEX.
    car's SCO channel, or the car treats the session as a call and
    swaps screens (in which case the volume-button macros remain
    the mute path and this app is the pre-drive launcher).
+
+## v2.5.3 — display name capitalized: "Muse Voice Mode" (2026-11-02, versionCode 14)
+
+Jonathan's order (2026-11-02): the voice feature's display name
+is **"Muse Voice Mode"** — capital V, capital M — matching the
+Muse Voice Mode Shortcut app's name. Every user-facing
+occurrence of the old lowercase "Muse voice mode" is renamed:
+
+- The Android Auto media item: browse title and the session
+  metadata TITLE are now "Muse Voice Mode"; the item subtitle
+  and session metadata ALBUM now read "Microphone button =
+  start Muse Voice Mode, press again to hang up · Play/Pause
+  = mic live/muted".
+- The phone app's instructions text ("open Muse Voice Mode",
+  "start Muse Voice Mode").
+- Code comments and this README's current-state sections.
+
+Also in this release: **album art.** Jonathan's profile photo
+is bundled as `res/drawable-nodpi/album_art.jpg` (150×150) and
+wired into the media session — `METADATA_KEY_ALBUM_ART` and
+`METADATA_KEY_DISPLAY_ICON` on the session metadata, and
+`setIconBitmap` on the "Muse Voice Mode" browse item — so
+Android Auto shows a picture for this media source instead of
+a blank / generic background. The load is defensive
+(`loadAlbumArt()` returns null on any failure); with no art,
+the service initializes exactly as before.
+
+No behavior changes, and nothing else was renamed: package,
+class names, media ids, and file paths are unchanged, and the
+historical changelog sections below (v2.5.1 / v2.5.2) still
+quote the old lowercase name as it was at the time.
+
+Verified: builds clean with both v2.3.2 guards (empty-library
+fetch guard + dex completeness guard) passing; `apksigner` OK,
+same cert (`314b8616…`), upgrades in place over v2.5.2;
+`aapt2 dump badging` shows package
+`com.jonathancruzate.metamuseandroidauto`, versionCode 14,
+versionName 2.5.3; the shipped APK's DEX contains "Muse Voice
+Mode" and zero occurrences of "Muse voice mode", and the APK
+bundles `res/drawable-nodpi-v4/album_art.jpg` (resource
+`drawable/album_art`, 8,613 B).
+APK: `Muse-Android-Auto-2.5.3.apk`, 747,048 B, SHA-256
+`cea71662e010e91935d9857fc4651031f10b0245276cacc104f7c0bc05317257`.
 
 ## v2.0.0 — no MacroDroid (same day, his order)
 

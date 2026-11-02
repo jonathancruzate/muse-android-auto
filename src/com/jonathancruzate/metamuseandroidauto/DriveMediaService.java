@@ -6,6 +6,8 @@ import android.app.NotificationManager;
 import android.app.PendingIntent;
 import android.content.Context;
 import android.content.Intent;
+import android.graphics.Bitmap;
+import android.graphics.BitmapFactory;
 import android.media.AudioFocusRequest;
 import android.media.AudioManager;
 import android.media.MediaPlayer;
@@ -27,11 +29,11 @@ import java.util.List;
  *  calling/messaging car categories are closed/testing-only).
  *
  *  What Auto shows: Muse for Android Auto as a media source with ONE playable
- *  item — "Muse voice mode", a silent loop. The controls are the point
+ *  item — "Muse Voice Mode", a silent loop. The controls are the point
  *  (v2.5.2, verified against this code after Jonathan's in-car tests):
  *
  *    Microphone button (custom action "Talk to Muse", ic_btn_speak_now)
- *             = TOGGLE Muse voice mode (v2.5.2): no session live
+ *             = TOGGLE Muse Voice Mode (v2.5.2): no session live
  *               -> START one (arms the session, fires ACTION_ASSIST
  *               into Muse, and the accessibility service taps
  *               Muse's own voice button); session live -> HANG UP
@@ -54,7 +56,7 @@ import java.util.List;
  *             = end the session (accessibility end-call tap).
  *
  *  Play/Pause never start a session: they only mute/unmute the mic
- *  (onPlay also fires when the "Muse voice mode" item is tapped).
+ *  (onPlay also fires when the "Muse Voice Mode" item is tapped).
  *
  *  v2: NO MacroDroid anywhere in the path. All session control is
  *  in-app (SessionControl / Mic / DriveAccessibilityService) —
@@ -121,11 +123,22 @@ public class DriveMediaService extends MediaBrowserServiceCompat {
             session.setCallback(new SessionCallback());
             session.setFlags(MediaSessionCompat.FLAG_HANDLES_MEDIA_BUTTONS
                     | MediaSessionCompat.FLAG_HANDLES_TRANSPORT_CONTROLS);
-            session.setMetadata(new MediaMetadataCompat.Builder()
-                    .putString(MediaMetadataCompat.METADATA_KEY_TITLE, "Muse voice mode")
+            MediaMetadataCompat.Builder metadata = new MediaMetadataCompat.Builder()
+                    .putString(MediaMetadataCompat.METADATA_KEY_TITLE, "Muse Voice Mode")
                     .putString(MediaMetadataCompat.METADATA_KEY_ARTIST, "Muse for Android Auto")
-                    .putString(MediaMetadataCompat.METADATA_KEY_ALBUM, "Microphone button = start Muse voice mode, press again to hang up · Play/Pause = mic live/muted")
-                    .build());
+                    .putString(MediaMetadataCompat.METADATA_KEY_ALBUM, "Microphone button = start Muse Voice Mode, press again to hang up · Play/Pause = mic live/muted");
+            // v2.5.3: album art (Jonathan's profile photo, bundled as
+            // res/drawable-nodpi/album_art.jpg) so Android Auto shows
+            // a picture for this media source instead of a blank /
+            // generic background. Decorative only: loadAlbumArt()
+            // returns null on any failure and the session metadata
+            // is then exactly what it was before v2.5.3.
+            Bitmap art = loadAlbumArt();
+            if (art != null) {
+                metadata.putBitmap(MediaMetadataCompat.METADATA_KEY_ALBUM_ART, art);
+                metadata.putBitmap(MediaMetadataCompat.METADATA_KEY_DISPLAY_ICON, art);
+            }
+            session.setMetadata(metadata.build());
             setSessionToken(session.getSessionToken());
             updateState(PlaybackStateCompat.STATE_NONE);
             session.setActive(true);
@@ -180,6 +193,20 @@ public class DriveMediaService extends MediaBrowserServiceCompat {
         return new BrowserRoot(ROOT_ID, null);
     }
 
+    /** v2.5.3: decode the bundled album art (Jonathan's profile
+     *  photo, res/drawable-nodpi/album_art.jpg). Returns null on ANY
+     *  failure — the art is decorative, and every caller treats null
+     *  as "no art", leaving behavior exactly as before v2.5.3.
+     *  Degrade, never crash, per this file's standing style. */
+    private Bitmap loadAlbumArt() {
+        try {
+            return BitmapFactory.decodeResource(getResources(), R.drawable.album_art);
+        } catch (Throwable t) {
+            CrashLog.record(this, "loadAlbumArt", t);
+            return null;
+        }
+    }
+
     @Override
     public void onLoadChildren(String parentId, Result<List<MediaBrowserCompat.MediaItem>> result) {
         // v2.3.1: guarded — a throw here is called by Android Auto /
@@ -188,11 +215,18 @@ public class DriveMediaService extends MediaBrowserServiceCompat {
         try {
             List<MediaBrowserCompat.MediaItem> items = new ArrayList<>();
             if (ROOT_ID.equals(parentId)) {
-                MediaDescriptionCompat desc = new MediaDescriptionCompat.Builder()
+                MediaDescriptionCompat.Builder descBuilder = new MediaDescriptionCompat.Builder()
                         .setMediaId(LINE_ID)
-                        .setTitle("Muse voice mode")
-                        .setSubtitle("Microphone button = start Muse voice mode, press again to hang up · Play/Pause = mic live/muted")
-                        .build();
+                        .setTitle("Muse Voice Mode")
+                        .setSubtitle("Microphone button = start Muse Voice Mode, press again to hang up · Play/Pause = mic live/muted");
+                // v2.5.3: same album art as the session metadata, as
+                // the browse item's icon. Null-safe: no art, no icon,
+                // item unchanged.
+                Bitmap art = loadAlbumArt();
+                if (art != null) {
+                    descBuilder.setIconBitmap(art);
+                }
+                MediaDescriptionCompat desc = descBuilder.build();
                 items.add(new MediaBrowserCompat.MediaItem(desc, MediaBrowserCompat.MediaItem.FLAG_PLAYABLE));
             }
             result.sendResult(items);

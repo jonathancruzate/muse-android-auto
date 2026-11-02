@@ -119,7 +119,7 @@ public final class SessionControl {
         }
     }
 
-    /** v2.5.2: the microphone button TOGGLES Muse voice mode
+    /** v2.5.2: the microphone button TOGGLES Muse Voice Mode
      *  (Jonathan's order 2026-11-01, from his in-car test: the mic
      *  button started a session but pressing it again did nothing,
      *  so there was no way to hang up from Android Auto). No
