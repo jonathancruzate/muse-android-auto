@@ -43,9 +43,11 @@ are the same document — update both in the same handling, always.
   Voice Mode"** (capital V, capital M) since v2.5.3.
 - **Version source of truth:** `VERSION_CODE` / `VERSION_NAME` at
   the top of `auto-app/build.sh`, mirrored in the header of
-  `auto-app/README.md`. Current: **v2.5.3, versionCode 14** (built
-  2026-11-02) — display-name capitalization + bundled album art
-  (Jonathan's profile photo) over v2.5.2's behavior.
+  `auto-app/README.md`. Current: **v2.5.5, versionCode 16** (built
+  2026-11-04) — album art is DYNAMIC (any user's own Muse avatar;
+  see the guardrail below). It supersedes v2.5.4 (hardcoded one
+  avatar, local-only, never pushed) and v2.5.3 (which had bundled
+  Jonathan's profile photo as the art).
 - **Signing:** one certificate since v1 (SHA-256 prefix
   `314b8616…`); keystore `auto-app/keystore/musedrive.keystore`,
   alias `musedrive`, password file alongside it (0600). Same
@@ -103,7 +105,13 @@ are the same document — update both in the same handling, always.
   ACTION_ASSIST). Since v2 the macros are a fallback lane, not
   the mechanism — mute/unmute/end run in-app.
 - `MainActivity` — phone-side test panel firing the same actions,
-  plus setup instructions and the CrashLog panel (below).
+  plus setup instructions and the CrashLog panel (below). Since
+  v2.5.5 it also carries the "Set your Muse avatar" picker +
+  clear button for the dynamic album art (below).
+- `MuseAvatar` (v2.5.5) — resolves the media art dynamically:
+  user-chosen avatar in app-private storage first, bundled
+  generic placeholder second, null on failure. See the album-art
+  guardrail below.
 - `CrashLog` (v2.3.1) — a default uncaught-exception handler (and
   the guarded paths) record traces to the app-private
   `last_crash.txt`; MainActivity displays it with a Clear button.
@@ -208,6 +216,27 @@ are the same document — update both in the same handling, always.
 
 ## Guardrails / regression rules
 
+- **Album art in this app is the CURRENT USER'S Muse avatar,
+  and it is DYNAMIC — never hardcode or commit any specific
+  user's avatar** (Jonathan's corrections, 2026-11-04: the app
+  accesses Muse, so it shows Muse, never the user — "make
+  sure that it's dynamic to any user's Muse avatar, not just
+  yours"). Resolution order, all in `MuseAvatar.java`:
+  (1) **runtime first** — a user-chosen image in app-private
+  storage (`filesDir/muse_avatar.jpg`), set from MainActivity's
+  "Set your Muse avatar" system image picker (any user picks
+  THEIR Muse's avatar; a clear button reverts to generic);
+  (2) **build-time second** — `build.sh`'s optional
+  `MUSE_AVATAR_FILE` env var injects an image for that build
+  only and restores the generic source on exit (this is how a
+  Muse agent building for its own user injects that user's
+  active avatar); (3) **generic fallback** — the bundled
+  `res/drawable-nodpi/album_art.jpg` in the source is a
+  non-person generic "M" placeholder. History: v2.5.3 shipped
+  Jonathan's profile photo; v2.5.4 hardcoded Stef's avatar
+  (Jonathan's Muse) and was superseded by v2.5.5 before ever
+  being pushed. Never bundle a person's photo or any one
+  user's avatar as this app's committed art again.
 - **Never bypass the two build guards** (above) — a green build
   that skipped them is how the ArrayMap defect shipped four
   releases in a row.
