@@ -3,6 +3,7 @@ package com.jonathancruzate.metamuseandroidauto;
 import android.app.Activity;
 import android.content.ComponentName;
 import android.content.Intent;
+import android.net.Uri;
 import android.os.Bundle;
 import android.provider.Settings;
 import android.view.View;
@@ -10,12 +11,15 @@ import android.widget.Button;
 import android.widget.LinearLayout;
 import android.widget.ScrollView;
 import android.widget.TextView;
+import android.widget.Toast;
 
 /** Phone-side face of Muse for Android Auto v2: explains the setup, shows
  *  live status, and doubles as an off-car test panel — every button
  *  fires exactly what the car surface / volume keys fire. No
  *  MacroDroid anywhere: control is in-app since v2. */
 public class MainActivity extends Activity {
+
+    private static final int REQ_PICK_AVATAR = 4711;
 
     private TextView status;
     private TextView crashView;
@@ -63,6 +67,42 @@ public class MainActivity extends Activity {
         root.addView(button("Enable accessibility service", new View.OnClickListener() {
             @Override public void onClick(View v) {
                 startActivity(new Intent(Settings.ACTION_ACCESSIBILITY_SETTINGS));
+            }
+        }));
+
+        // v2.5.5: DYNAMIC avatar art. The picture Android Auto shows
+        // for this app is YOUR Muse's avatar — pick an image of it
+        // here (e.g. one saved/exported from your own Muse app) and
+        // it is copied into this app's private storage and used as
+        // the album art. Nothing personal is baked into the app:
+        // until you pick one, a generic placeholder is shown.
+        TextView avatarText = new TextView(this);
+        avatarText.setText("\nYour Muse avatar (shown in the car): pick an image of your own "
+                + "Muse's avatar and this app will use it as its picture in Android Auto. "
+                + "If the media service is already running the new picture applies right away; "
+                + "otherwise it applies the next time the service starts.");
+        avatarText.setTextSize(15);
+        root.addView(avatarText);
+
+        root.addView(button("Set your Muse avatar", new View.OnClickListener() {
+            @Override public void onClick(View v) {
+                try {
+                    Intent pick = new Intent(Intent.ACTION_OPEN_DOCUMENT);
+                    pick.addCategory(Intent.CATEGORY_OPENABLE);
+                    pick.setType("image/*");
+                    startActivityForResult(pick, REQ_PICK_AVATAR);
+                } catch (Throwable t) {
+                    CrashLog.record(MainActivity.this, "pickAvatar", t);
+                    Toast.makeText(MainActivity.this, "No image picker available", Toast.LENGTH_SHORT).show();
+                }
+            }
+        }));
+        root.addView(button("Use generic avatar (clear mine)", new View.OnClickListener() {
+            @Override public void onClick(View v) {
+                boolean ok = MuseAvatar.clear(MainActivity.this);
+                if (DriveMediaService.active != null) DriveMediaService.active.refreshAlbumArt();
+                Toast.makeText(MainActivity.this, ok ? "Back to the generic avatar" : "Nothing to clear", Toast.LENGTH_SHORT).show();
+                refreshStatus();
             }
         }));
 
@@ -119,6 +159,22 @@ public class MainActivity extends Activity {
     }
 
     @Override
+    protected void onActivityResult(int requestCode, int resultCode, Intent data) {
+        super.onActivityResult(requestCode, resultCode, data);
+        if (requestCode != REQ_PICK_AVATAR) return;
+        try {
+            Uri uri = (data != null) ? data.getData() : null;
+            if (resultCode != RESULT_OK || uri == null) return; // picker cancelled: nothing changes
+            boolean ok = MuseAvatar.saveFromUri(this, uri);
+            if (ok && DriveMediaService.active != null) DriveMediaService.active.refreshAlbumArt();
+            Toast.makeText(this, ok ? "Your Muse avatar is set" : "That image could not be used", Toast.LENGTH_SHORT).show();
+        } catch (Throwable t) {
+            CrashLog.record(this, "onActivityResult(avatar)", t);
+        }
+        refreshStatus();
+    }
+
+    @Override
     protected void onResume() {
         super.onResume();
         refreshStatus();
@@ -131,6 +187,7 @@ public class MainActivity extends Activity {
             status.setText("\nStatus: accessibility " + (a11y ? "ON" : "OFF")
                     + " - mic " + (Mic.isMuted(this) ? "MUTED" : "live")
                     + " - session " + (SessionState.armed ? "armed" : "not armed")
+                    + " - avatar " + (MuseAvatar.hasCustom(this) ? "yours (custom)" : "generic")
                     + (DriveMediaService.initFailed ? " - media service INIT FAILED" : ""));
         } catch (Throwable t) {
             CrashLog.record(this, "refreshStatus", t);

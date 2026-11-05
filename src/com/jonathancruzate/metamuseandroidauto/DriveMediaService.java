@@ -123,22 +123,7 @@ public class DriveMediaService extends MediaBrowserServiceCompat {
             session.setCallback(new SessionCallback());
             session.setFlags(MediaSessionCompat.FLAG_HANDLES_MEDIA_BUTTONS
                     | MediaSessionCompat.FLAG_HANDLES_TRANSPORT_CONTROLS);
-            MediaMetadataCompat.Builder metadata = new MediaMetadataCompat.Builder()
-                    .putString(MediaMetadataCompat.METADATA_KEY_TITLE, "Muse Voice Mode")
-                    .putString(MediaMetadataCompat.METADATA_KEY_ARTIST, "Muse for Android Auto")
-                    .putString(MediaMetadataCompat.METADATA_KEY_ALBUM, "Microphone button = start Muse Voice Mode, press again to hang up · Play/Pause = mic live/muted");
-            // v2.5.3: album art (Jonathan's profile photo, bundled as
-            // res/drawable-nodpi/album_art.jpg) so Android Auto shows
-            // a picture for this media source instead of a blank /
-            // generic background. Decorative only: loadAlbumArt()
-            // returns null on any failure and the session metadata
-            // is then exactly what it was before v2.5.3.
-            Bitmap art = loadAlbumArt();
-            if (art != null) {
-                metadata.putBitmap(MediaMetadataCompat.METADATA_KEY_ALBUM_ART, art);
-                metadata.putBitmap(MediaMetadataCompat.METADATA_KEY_DISPLAY_ICON, art);
-            }
-            session.setMetadata(metadata.build());
+            applyMetadata();
             setSessionToken(session.getSessionToken());
             updateState(PlaybackStateCompat.STATE_NONE);
             session.setActive(true);
@@ -193,14 +178,49 @@ public class DriveMediaService extends MediaBrowserServiceCompat {
         return new BrowserRoot(ROOT_ID, null);
     }
 
-    /** v2.5.3: decode the bundled album art (Jonathan's profile
-     *  photo, res/drawable-nodpi/album_art.jpg). Returns null on ANY
-     *  failure — the art is decorative, and every caller treats null
-     *  as "no art", leaving behavior exactly as before v2.5.3.
-     *  Degrade, never crash, per this file's standing style. */
+    /** Build (or rebuild) the session metadata, including the
+     *  current album art. Art resolution is DYNAMIC (v2.5.5, see
+     *  MuseAvatar): the current user's own Muse avatar — a
+     *  user-chosen image in app-private storage — first, then the
+     *  bundled generic placeholder. No specific user's avatar is
+     *  baked into this app. Decorative only: a null art leaves the
+     *  metadata exactly as it was before v2.5.3. */
+    private void applyMetadata() {
+        if (session == null) return;
+        MediaMetadataCompat.Builder metadata = new MediaMetadataCompat.Builder()
+                .putString(MediaMetadataCompat.METADATA_KEY_TITLE, "Muse Voice Mode")
+                .putString(MediaMetadataCompat.METADATA_KEY_ARTIST, "Muse for Android Auto")
+                .putString(MediaMetadataCompat.METADATA_KEY_ALBUM, "Microphone button = start Muse Voice Mode, press again to hang up · Play/Pause = mic live/muted");
+        Bitmap art = loadAlbumArt();
+        if (art != null) {
+            metadata.putBitmap(MediaMetadataCompat.METADATA_KEY_ALBUM_ART, art);
+            metadata.putBitmap(MediaMetadataCompat.METADATA_KEY_DISPLAY_ICON, art);
+        }
+        session.setMetadata(metadata.build());
+    }
+
+    /** v2.5.5: called by MainActivity after the user picks or clears
+     *  their Muse avatar, so a running service picks the new art up
+     *  without waiting for a restart. Guarded like every entry point. */
+    public void refreshAlbumArt() {
+        try {
+            if (session == null) return;
+            applyMetadata();
+            notifyChildrenChanged(ROOT_ID);
+        } catch (Throwable t) {
+            CrashLog.record(this, "refreshAlbumArt", t);
+        }
+    }
+
+    /** Decode the current album art via MuseAvatar (dynamic:
+     *  user-chosen avatar first, bundled generic placeholder
+     *  second). Returns null on ANY failure — the art is
+     *  decorative, and every caller treats null as "no art",
+     *  leaving behavior exactly as before v2.5.3. Degrade, never
+     *  crash, per this file's standing style. */
     private Bitmap loadAlbumArt() {
         try {
-            return BitmapFactory.decodeResource(getResources(), R.drawable.album_art);
+            return MuseAvatar.load(this);
         } catch (Throwable t) {
             CrashLog.record(this, "loadAlbumArt", t);
             return null;

@@ -1,4 +1,4 @@
-# Muse for Android Auto — Android Auto media app (v2.5.3, built 2026-11-02)
+# Muse for Android Auto — Android Auto media app (v2.5.5, built 2026-11-04)
 
 > **Renamed in v2.2.2:** the app's display name is now **Muse for
 > Android Auto** (Jonathan's order, 2026-10-31). It was formerly
@@ -63,8 +63,13 @@ session's eyes-free controls.
 
 `./build.sh` — javac/d8/aapt2 via the meta-muse-widget SDK
 (read-only toolchain use; no emulator touched), own keystore in
-`keystore/` (password file alongside, 0600). Output:
-`Muse-Android-Auto-2.5.3.apk`, signed, apksigner-verified; manifest dump
+`keystore/` (password file alongside, 0600). Optional
+personalized build: `MUSE_AVATAR_FILE=<image> ./build.sh`
+bundles that image (the building user's own Muse avatar) as
+the album art for that build only and restores the generic
+bundled placeholder afterwards — the source always ships the
+generic placeholder; see the v2.5.5 section. Output:
+`Muse-Android-Auto-2.5.5.apk`, signed, apksigner-verified; manifest dump
 confirms the `com.google.android.gms.car.application` meta-data,
 the exported MediaBrowserService, and all four action strings in
 the DEX.
@@ -128,6 +133,112 @@ bundles `res/drawable-nodpi-v4/album_art.jpg` (resource
 `drawable/album_art`, 8,613 B).
 APK: `Muse-Android-Auto-2.5.3.apk`, 747,048 B, SHA-256
 `cea71662e010e91935d9857fc4651031f10b0245276cacc104f7c0bc05317257`.
+
+## v2.5.5 — album art is DYNAMIC: any user's Muse avatar (2026-11-04, versionCode 16)
+
+Jonathan's follow-up correction (2026-11-04, voice call): the
+art must be "dynamic to any user's Muse avatar, not just
+yours." v2.5.4 (below) hardcoded ONE specific Muse's avatar
+(Jonathan's own, Stef) as the bundled image — right for his
+phone, wrong for everyone else, and it was superseded before
+ever being pushed or released. v2.5.5 makes the art dynamic
+three ways, in priority order:
+
+1. **Runtime (primary):** `DriveMediaService` now resolves its
+   art through the new `MuseAvatar` helper, which FIRST decodes
+   a user-chosen image stored in app-private storage
+   (`filesDir/muse_avatar.jpg`) and only then falls back to the
+   bundled art. `MainActivity` gains a **"Set your Muse
+   avatar"** picker (system `ACTION_OPEN_DOCUMENT` image picker)
+   that center-crops/resizes the chosen image to a 512×512 JPEG
+   in that private file — any user picks THEIR own Muse's
+   avatar, e.g. an image saved/exported from their own Muse
+   app. A running media service refreshes its metadata and
+   browse art immediately after a pick (`refreshAlbumArt()`);
+   otherwise the new art applies on next service start. A
+   **"Use generic avatar (clear mine)"** button deletes the
+   custom file and falls back to the generic default.
+2. **Build-time (the agent lane):** `build.sh` accepts an
+   optional `MUSE_AVATAR_FILE` env var (jpg/png/webp). When
+   set, that image is converted and bundled **for that build
+   only**; an EXIT trap restores the generic source file when
+   the build ends, success or failure. This is how a Muse
+   agent building for its own user injects that user's active
+   avatar without ever committing a personal image.
+3. **Bundled fallback (source):** `res/drawable-nodpi/album_art.jpg`
+   in the source tree (and the github-export staging copy) is
+   now a **generic, non-person placeholder** — a simple "M"
+   mark on a solid background, no face, no person. No specific
+   user's avatar (not Stef's, not Jonathan's photo, not
+   anyone's) is committed anywhere in the source.
+
+Everything else is unchanged: same wiring
+(`METADATA_KEY_ALBUM_ART` / `DISPLAY_ICON` / browse-item icon),
+same degrade-never-crash style (CrashLog on failure, null =
+"no art"), no session-control, string, name, or macro changes.
+
+Verified — BOTH builds, both v2.3.2 guards passing on each:
+- **Generic build** (no env var) — the releasable,
+  source-true APK: `apksigner` OK, same cert (`314b8616…`);
+  `aapt2 dump badging` shows package
+  `com.jonathancruzate.metamuseandroidauto`, versionCode 16,
+  versionName 2.5.5; extracted
+  `res/drawable-nodpi-v4/album_art.jpg` (22,686 B) is
+  pixel-identical to the generic source (mean abs diff 0.0),
+  completely different from Stef's avatar (116.1) and from
+  Jonathan's profile photo (71.9), and visually confirmed as
+  the generic "M" mark.
+  APK: 763,432 B, SHA-256
+  `8e58663f03da6763be8869a070968e92e028d5612ac361daa5f1073e7cdb4748`.
+- **Jonathan's personalized build** (`MUSE_AVATAR_FILE` =
+  his active avatar `avatar-1792645695164555342-10.webp`):
+  same cert and badging; extracted art is identical to the
+  avatar-derived JPEG (0.0), near-identical to the avatar
+  webp (1.47), and completely different from Jonathan's
+  photo (87.3) and from the generic placeholder (116.2).
+  After the build, the source `album_art.jpg` was verified
+  back to the generic placeholder (md5 `4fc34eff…` in both
+  `res/` and `github-export/res/`). This personalized APK is
+  the final `Muse-Android-Auto-2.5.5.apk` on disk — a LOCAL
+  artifact for Jonathan's phone, NOT the release candidate;
+  the generic build above is what a release would ship.
+  Personalized APK: 792,104 B, SHA-256
+  `2fc94fb8191ddbce0395fd143597002155777e40dbaa536d13c02cb4a0d6c3cf`.
+- The shipped DEX contains the new picker strings
+  ("Set your Muse avatar", "Use generic avatar (clear
+  mine)"), `MuseAvatar`, and `muse_avatar.jpg`.
+
+Not pushed / not released: v2.5.5 is staged locally only
+(the earlier GitHub push approval was declined and was not
+retried).
+
+## v2.5.4 — album art corrected: the Muse avatar, not the user (2026-11-04, versionCode 15)
+
+Jonathan's correction (2026-11-04, voice call): the album art
+shipped in v2.5.3 was his profile photo, but the picture this
+app shows must be the **Muse avatar** — the app exists to
+access Muse from Android Auto, so it shows Muse, never the
+user. `res/drawable-nodpi/album_art.jpg` is now the active
+Muse avatar (`avatar-1792645695164555342-10.webp`, 1600×1600)
+converted to a 512×512 JPEG. The DriveMediaService wiring is
+unchanged: same resource, `METADATA_KEY_ALBUM_ART` /
+`METADATA_KEY_DISPLAY_ICON` / browse-item icon, same defensive
+`loadAlbumArt()`. No other changes — no behavior, strings, or
+icons touched.
+
+Verified: builds clean with both v2.3.2 guards (empty-library
+fetch guard + dex completeness guard) passing; `apksigner`
+OK, same cert (`314b8616…`), upgrades in place over v2.5.3;
+`aapt2 dump badging` shows package
+`com.jonathancruzate.metamuseandroidauto`, versionCode 15,
+versionName 2.5.4; the shipped APK bundles
+`res/drawable-nodpi-v4/album_art.jpg` (50,614 B) whose decoded
+pixels are identical to the avatar-derived source JPEG (mean
+abs diff 0.0), near-identical to the avatar webp (1.47), and
+completely different from the old photo art (87.3) — and the
+extracted art was visually confirmed as the Muse avatar.
+APK: `Muse-Android-Auto-2.5.4.apk`, 792,104 B, SHA-256
+`6ed7714845a656cfdfdc1ab08fa24ac96648440a5816b86c22a7e9925201083a`.
 
 ## v2.0.0 — no MacroDroid (same day, his order)
 

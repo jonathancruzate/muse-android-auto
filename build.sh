@@ -13,8 +13,54 @@ BT="$SDK/build-tools/35.0.0"
 ANDROID_JAR="$SDK/platforms/android-35/android.jar"
 KS="keystore/musedrive.keystore"
 KS_PASS_FILE="keystore/keystore-password.txt"
-VERSION_CODE=14
-VERSION_NAME="2.5.3"
+VERSION_CODE=16
+VERSION_NAME="2.5.5"
+
+# --- v2.5.5: DYNAMIC album art -------------------------------------
+# The source tree bundles ONLY a generic, non-person placeholder as
+# res/drawable-nodpi/album_art.jpg — never any specific user's Muse
+# avatar. At runtime the app prefers a user-chosen avatar image in
+# app-private storage (see MuseAvatar.java / MainActivity's picker).
+#
+# Optional PERSONALIZED BUILD (the agent lane): set MUSE_AVATAR_FILE
+# to a jpg/png/webp holding YOUR user's Muse avatar and this build —
+# and only this build — bundles that image as the album art:
+#     MUSE_AVATAR_FILE=/path/to/avatar.webp ./build.sh
+# This is how a Muse agent building for its own user injects that
+# user's active avatar without ever committing a personal image.
+# The generic source file is restored when the build exits, on
+# success OR failure (EXIT trap below) — verify afterwards with
+# `md5sum res/drawable-nodpi/album_art.jpg` if in doubt.
+ART_FILE="res/drawable-nodpi/album_art.jpg"
+ART_BACKUP=""
+restore_art() {
+  if [ -n "$ART_BACKUP" ] && [ -f "$ART_BACKUP" ]; then
+    cp "$ART_BACKUP" "$ART_FILE" || true
+    rm -f "$ART_BACKUP" || true
+  fi
+}
+trap restore_art EXIT
+if [ -n "${MUSE_AVATAR_FILE:-}" ]; then
+  if [ ! -f "$MUSE_AVATAR_FILE" ]; then
+    echo "FATAL: MUSE_AVATAR_FILE does not exist: $MUSE_AVATAR_FILE"
+    exit 1
+  fi
+  ART_BACKUP="$(mktemp /tmp/muse-generic-art-XXXXXX.jpg)"
+  cp "$ART_FILE" "$ART_BACKUP"
+  echo "== personalized build: injecting MUSE_AVATAR_FILE as album art (this build only; generic source restored on exit) =="
+  MUSE_AVATAR_FILE="$MUSE_AVATAR_FILE" MUSE_ART_FILE="$ART_FILE" python3 - << 'PY'
+import os
+from PIL import Image
+src = Image.open(os.environ["MUSE_AVATAR_FILE"]).convert("RGB")
+side = min(src.size)
+x = (src.size[0] - side) // 2
+y = (src.size[1] - side) // 2
+src.crop((x, y, x + side, y + side)).resize((512, 512), Image.LANCZOS).save(
+    os.environ["MUSE_ART_FILE"], quality=90)
+print("personalized album art written from", os.environ["MUSE_AVATAR_FILE"])
+PY
+fi
+# --- end dynamic album art ------------------------------------------
 
 rm -rf build
 mkdir -p build/gen build/classes build/dex keystore res/raw
