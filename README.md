@@ -898,3 +898,7 @@ hunt); on-device screen-off proof is Jonathan's next in-car
 test.
 APK: `Muse-Android-Auto-2.5.2.apk`, 738,775 B, SHA-256
 `eece215cadd2b90d90e870ad9c7e62efdfbd86fcff873bff6288bb821a75197f`.
+
+## Screenshots
+
+![Muse for Android Auto main screen on the Surface Duo](docs/screenshots/muse-for-android-auto-main.jpg)
