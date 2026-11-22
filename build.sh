@@ -13,8 +13,8 @@ BT="$SDK/build-tools/35.0.0"
 ANDROID_JAR="$SDK/platforms/android-35/android.jar"
 KS="keystore/musedrive.keystore"
 KS_PASS_FILE="keystore/keystore-password.txt"
-VERSION_CODE=16
-VERSION_NAME="2.5.5"
+VERSION_CODE=17
+VERSION_NAME="2.5.6"
 
 # --- v2.5.5: DYNAMIC album art -------------------------------------
 # The source tree bundles ONLY a generic, non-person placeholder as

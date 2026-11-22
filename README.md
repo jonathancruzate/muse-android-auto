@@ -899,6 +899,13 @@ test.
 APK: `Muse-Android-Auto-2.5.2.apk`, 738,775 B, SHA-256
 `eece215cadd2b90d90e870ad9c7e62efdfbd86fcff873bff6288bb821a75197f`.
 
-## Screenshots
+## v2.5.6 (2026-11-21) — unique Muse app icon
 
-![Muse for Android Auto main screen on the Surface Duo](docs/screenshots/muse-for-android-auto-main.jpg)
+Icon-only release (versionCode 17). Launcher icon is now this app's own
+from the approved unique Muse app icon set (`~/workspace/muse-app-logos/`):
+original Muse blue M on a light tile plus a green steering-wheel badge,
+superseding the 2026-11-01 all-same-icon rule. Legacy mipmaps + round +
+adaptive icon (background #F0F2F5, foreground at 76% centred). Verified:
+icon extracted from the built APK matches the approved art; apksigner
+verify passed. APK: Muse-Android-Auto-2.5.6.apk, SHA-256 `243b992bccd6e1871aa341d0135206dea8cafc538ae61134afa5bc2d7887c7b4`.
+Not installed by this handling; ready to install.
